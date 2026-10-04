@@ -30,9 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentVideoData = null;
   let activeTab = 'video';
 
-  // ==========================================================================
-  // PLATFORM DETECTION
-  // ==========================================================================
   const CLIENT_PLATFORMS = [
     { name: 'Facebook', color: '#1877F2', regex: /(?:facebook\.com|fb\.watch|fb\.com)/i },
     { name: 'Instagram', color: '#E1306C', regex: /(?:instagram\.com|instagr\.am)/i },
@@ -47,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   // TOAST
   // ==========================================================================
-  function showToast(title, message, type = 'info', duration = 3000) {
+  function showToast(title, message, type = 'info', duration = 2500) {
     if (!toastContainer) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -128,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (text) {
           urlInput.value = text.trim();
           checkUrlPlatform(text);
-          showToast('URL Pasted', 'Clipboard contents inserted', 'info', 1500);
+          showToast('URL Pasted', 'Clipboard contents inserted', 'info', 1200);
           triggerFetch();
         } else {
           showToast('Clipboard Empty', 'No text found in clipboard', 'info');
@@ -212,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       currentVideoData = result.data;
       renderResults(result.data);
-      showToast('Media Ready', 'Video formats retrieved successfully!', 'success', 2000);
+      showToast('Media Ready', 'Video formats retrieved successfully!', 'success', 1800);
 
       setTimeout(() => {
         resultsSection && resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -286,14 +283,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       card.addEventListener('click', (e) => {
         createRipple(e);
+        const direct = (fmt.format_id === 'best')
+          ? (fmt.direct_url || bestDirectUrl || null)
+          : null;
         initiateDownload({
           url: originalUrl,
           format_id: fmt.format_id,
           type: 'video',
           cardElement: card,
           quality: 'best',
-          // ⚡ Pass pre-computed direct URL only when it matches this format
-          directUrl: (fmt.format_id === 'best' && fmt.direct_url) ? fmt.direct_url : (bestDirectUrl && fmt.format_id === 'best' ? bestDirectUrl : null),
+          directUrl: direct,
         });
       });
 
@@ -375,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ==========================================================================
-  // DOWNLOAD — instant, with direct-url hint
+  // DOWNLOAD — FAST
   // ==========================================================================
   function initiateDownload({ url, format_id, type, quality, cardElement, directUrl }) {
     const btn = cardElement.querySelector('.btn-card-download');
@@ -397,14 +396,12 @@ document.addEventListener('DOMContentLoaded', () => {
       quality: quality || '192',
     });
 
-    // ⚡ If we already have the CDN URL, pass it so backend skips yt-dlp
     if (directUrl && type === 'video' && format_id === 'best') {
       params.set('direct_url', directUrl);
     }
 
     const downloadUrl = `/api/download-direct?${params.toString()}`;
 
-    // Native browser download — instant, honors Content-Disposition
     const a = document.createElement('a');
     a.href = downloadUrl;
     a.rel = 'noopener';
@@ -413,7 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
     a.click();
     setTimeout(() => a.remove(), 1500);
 
-    // Reset button FAST (200ms instead of 1500ms)
     setTimeout(() => {
       if (btnText) btnText.textContent = originalText;
       if (btn) {
