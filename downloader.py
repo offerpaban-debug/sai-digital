@@ -4,25 +4,70 @@ import uuid
 import glob
 import logging
 from typing import Dict, Any, List, Optional
+from urllib.parse import urlparse
+
 import yt_dlp
 
 from utils import detect_platform, format_duration, format_size, sanitize_filename
 
-logger = logging.getLogger("vidgrab.downloader")
+logger = logging.getLogger("saidigital.downloader")
 
 DOWNLOADS_DIR = os.getenv("DOWNLOADS_DIR", "downloads")
 MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "1800"))
 ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
 
-# Ensure target storage directory exists
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
-# In-Memory Cache for fast response times (TTL: 10 minutes)
+# In-memory metadata cache (TTL 10 min)
 INFO_CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL_SECONDS = 600
 
+
+# ==============================================================================
+# URL VALIDATION (server-side, hard allow-list)
+# ==============================================================================
+ALLOWED_HOSTS = (
+    "facebook.com", "fb.watch", "fb.com", "m.facebook.com", "www.facebook.com",
+    "instagram.com", "www.instagram.com", "instagr.am",
+    "tiktok.com", "www.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+    "twitter.com", "www.twitter.com", "x.com", "www.x.com", "mobile.twitter.com",
+    "pinterest.com", "www.pinterest.com", "pin.it",
+    "reddit.com", "www.reddit.com", "redd.it", "old.reddit.com",
+    "vimeo.com", "www.vimeo.com", "player.vimeo.com",
+    "threads.net", "www.threads.net",
+)
+
+
+def validate_url(url: str) -> bool:
+    """Strict server-side URL validation. Returns True only for allowed platforms."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urlparse(url.strip())
+    except Exception:
+        return False
+
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+
+    # Block YouTube explicitly when disabled
+    if "youtube" in host or "youtu.be" in host:
+        return ENABLE_YOUTUBE
+
+    for allowed in ALLOWED_HOSTS:
+        if host == allowed or host.endswith("." + allowed):
+            return True
+    return False
+
+
+# ==============================================================================
+# CLEANUP
+# ==============================================================================
 def cleanup_old_files() -> int:
-    """Purges cached downloads older than MAX_FILE_AGE_SECONDS."""
     now = time.time()
     deleted_count = 0
     try:
@@ -38,56 +83,67 @@ def cleanup_old_files() -> int:
     except Exception as e:
         logger.error(f"Error during download directory cleanup: {e}")
 
-    # Also purge expired memory cache items
-    expired_keys = [k for k, v in INFO_CACHE.items() if (now - v.get("timestamp", 0)) > CACHE_TTL_SECONDS]
+    expired_keys = [
+        k for k, v in INFO_CACHE.items()
+        if (now - v.get("timestamp", 0)) > CACHE_TTL_SECONDS
+    ]
     for k in expired_keys:
         INFO_CACHE.pop(k, None)
 
     return deleted_count
 
+
+# ==============================================================================
+# YT-DLP BASE OPTS
+# ==============================================================================
+def _base_ydl_opts() -> Dict[str, Any]:
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "socket_timeout": 15,
+        "retries": 2,
+        "fragment_retries": 2,
+        "no_color": True,
+        "ignoreerrors": False,
+        "nocheckcertificate": True,
+        "geo_bypass": True,
+    }
+
+
+# ==============================================================================
+# INFO EXTRACTION
+# ==============================================================================
 def extract_video_info(url: str) -> Dict[str, Any]:
-    """
-    Extracts high-fidelity metadata, thumbnail, duration, and structured
-    video & audio format options with optimized speed (< 1-2s).
-    """
     clean_url = url.strip()
     platform_info = detect_platform(clean_url)
 
     if platform_info["id"] == "youtube" and not ENABLE_YOUTUBE:
         raise ValueError("YouTube downloads are temporarily disabled on this instance")
 
-    # Check cache for instantaneous return
+    if not validate_url(clean_url):
+        raise ValueError("Unsupported or invalid URL")
+
     now = time.time()
     cached = INFO_CACHE.get(clean_url)
     if cached and (now - cached.get("timestamp", 0)) < CACHE_TTL_SECONDS:
         return cached["data"]
 
-    # Highly optimized options for lightning fast extraction
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
+    ydl_opts = _base_ydl_opts()
+    ydl_opts.update({
         "skip_download": True,
-        "noplaylist": True,
-        "socket_timeout": 8,
-        "retries": 1,
-        "extract_flat": "in_playlist",
-        "check_formats": False,  # CRITICAL SPEEDUP: Do not send HEAD requests to format URLs
+        "extract_flat": False,
+        "check_formats": False,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "no_color": True,
-        "ignoreerrors": False,
-    }
+    })
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info = ydl.extract_info(clean_url, download=False)
-        except Exception as e:
-            raise e
+        info = ydl.extract_info(clean_url, download=False)
 
     if not info:
         raise ValueError("No video data found. Please verify the URL.")
 
-    # If playlist was returned, pick primary entry
     if "entries" in info and info["entries"]:
         info = info["entries"][0]
 
@@ -100,8 +156,11 @@ def extract_video_info(url: str) -> Dict[str, Any]:
     raw_formats = info.get("formats") or []
     video_formats: List[Dict[str, Any]] = []
 
-    # Best combined option (Recommended Default)
-    best_direct_url = info.get("url") if info.get("ext") == "mp4" else None
+    # --- Best combined option ---
+    best_direct_url = None
+    if info.get("ext") == "mp4" and info.get("url"):
+        best_direct_url = info["url"]
+
     video_formats.append({
         "format_id": "best",
         "label": "Best Quality (Auto MP4)",
@@ -114,7 +173,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "direct_url": best_direct_url,
     })
 
-    # Group video formats by standard resolution heights
+    # --- Per-resolution video formats ---
     seen_heights = set()
     standard_heights = [2160, 1440, 1080, 720, 480, 360, 240, 144]
     resolution_names = {
@@ -135,38 +194,44 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         if vcodec and vcodec != "none" and height:
             video_candidates.append(f)
 
-    # Sort descending by height and filesize
-    video_candidates.sort(key=lambda x: (x.get("height") or 0, x.get("filesize") or 0), reverse=True)
+    video_candidates.sort(
+        key=lambda x: (x.get("height") or 0, x.get("filesize") or x.get("filesize_approx") or 0),
+        reverse=True,
+    )
 
     for cand in video_candidates:
         h = cand.get("height")
         if not h:
             continue
-
         matched_h = min(standard_heights, key=lambda x: abs(x - h))
-        if matched_h not in seen_heights:
-            seen_heights.add(matched_h)
-            ext = cand.get("ext", "mp4")
-            filesize = cand.get("filesize") or cand.get("filesize_approx")
-            has_audio = cand.get("acodec") != "none" and cand.get("acodec") is not None
-            label = resolution_names.get(matched_h, f"{matched_h}p")
+        if matched_h in seen_heights:
+            continue
+        seen_heights.add(matched_h)
 
-            # Direct URL available from CDN
-            direct_link = cand.get("url") if (has_audio and ext == "mp4") else None
+        ext = cand.get("ext", "mp4")
+        filesize = cand.get("filesize") or cand.get("filesize_approx")
+        acodec = cand.get("acodec")
+        has_audio = bool(acodec) and acodec != "none"
+        label = resolution_names.get(matched_h, f"{matched_h}p")
 
-            video_formats.append({
-                "format_id": str(cand.get("format_id")),
-                "label": label,
-                "resolution": f"{matched_h}p",
-                "ext": "mp4",
-                "has_audio": has_audio,
-                "size_str": format_size(filesize),
-                "is_recommended": False,
-                "badge": "HD" if matched_h >= 720 else "SD",
-                "direct_url": direct_link,
-            })
+        # Only expose direct URL if it's an muxed MP4 (has both video+audio)
+        direct_link = None
+        if has_audio and ext == "mp4" and cand.get("url"):
+            direct_link = cand["url"]
 
-    # High-Fidelity Audio MP3 options
+        video_formats.append({
+            "format_id": str(cand.get("format_id")),
+            "label": label,
+            "resolution": f"{matched_h}p",
+            "ext": "mp4",
+            "has_audio": has_audio,
+            "size_str": format_size(filesize),
+            "is_recommended": False,
+            "badge": "HD" if matched_h >= 720 else "SD",
+            "direct_url": direct_link,
+        })
+
+    # --- Audio options ---
     audio_formats = [
         {
             "format_id": "mp3-320",
@@ -209,64 +274,122 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "audio_formats": audio_formats,
     }
 
-    # Store in fast memory cache
     INFO_CACHE[clean_url] = {
         "timestamp": now,
         "raw_info": info,
         "data": result_data,
     }
-
     return result_data
 
+
+# ==============================================================================
+# DIRECT STREAM URL LOOKUP
+# ==============================================================================
 def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[str, str]]:
-    """Checks if a direct CDN URL is available to stream immediately without disk write."""
+    """
+    Return a direct CDN URL for the requested format so we can stream
+    without writing to disk (Storage = 0).
+
+    Cache-miss safe: if the in-memory cache has expired (e.g. after a
+    Render container restart), we re-extract metadata on the fly.
+    """
     clean_url = url.strip()
+    if not validate_url(clean_url):
+        return None
+
     cached = INFO_CACHE.get(clean_url)
+    if not cached or "raw_info" not in cached:
+        # Cache miss — rebuild by running extraction once.
+        try:
+            extract_video_info(clean_url)
+            cached = INFO_CACHE.get(clean_url)
+        except Exception as e:
+            logger.warning(f"Cache rebuild failed for {clean_url}: {e}")
+            return None
+
     if not cached or "raw_info" not in cached:
         return None
 
     raw_info = cached["raw_info"]
     raw_formats = raw_info.get("formats") or []
     title = sanitize_filename(raw_info.get("title") or "video")
+    referer = raw_info.get("webpage_url") or clean_url
 
-    if format_id == "best" and raw_info.get("ext") == "mp4" and raw_info.get("url"):
-        return {
-            "stream_url": raw_info["url"],
-            "filename": f"{title}.mp4",
-            "content_type": "video/mp4",
-        }
+    # "best" — only if top-level muxed URL exists
+    if format_id == "best":
+        if raw_info.get("ext") == "mp4" and raw_info.get("url"):
+            return {
+                "stream_url": raw_info["url"],
+                "filename": f"{title}.mp4",
+                "content_type": "video/mp4",
+                "referer": referer,
+            }
+        # Otherwise fall back to highest muxed mp4
+        muxed = [
+            f for f in raw_formats
+            if f.get("url")
+            and f.get("ext") == "mp4"
+            and f.get("vcodec") not in (None, "none")
+            and f.get("acodec") not in (None, "none")
+        ]
+        if muxed:
+            muxed.sort(
+                key=lambda x: (x.get("height") or 0, x.get("tbr") or 0),
+                reverse=True,
+            )
+            best = muxed[0]
+            return {
+                "stream_url": best["url"],
+                "filename": f"{title}.mp4",
+                "content_type": "video/mp4",
+                "referer": referer,
+            }
+        return None
 
+    # Specific format_id
     for f in raw_formats:
         if str(f.get("format_id")) == str(format_id):
-            if f.get("url") and f.get("acodec") != "none" and f.get("ext") == "mp4":
+            if (
+                f.get("url")
+                and f.get("ext") == "mp4"
+                and f.get("vcodec") not in (None, "none")
+                and f.get("acodec") not in (None, "none")
+            ):
                 return {
                     "stream_url": f["url"],
                     "filename": f"{title}.mp4",
                     "content_type": "video/mp4",
+                    "referer": referer,
                 }
     return None
 
+
+# ==============================================================================
+# FALLBACK: SERVER-SIDE DOWNLOAD
+# ==============================================================================
 def download_media_file(
     url: str,
     format_id: str = "best",
     media_type: str = "video",
-    audio_quality: str = "192"
+    audio_quality: str = "192",
 ) -> Dict[str, Any]:
-    """
-    Downloads and converts requested media (Video MP4 or Audio MP3) into
-    the persistent download directory using accelerated parallel pipelines.
-    """
     clean_url = url.strip()
     platform_info = detect_platform(clean_url)
 
     if platform_info["id"] == "youtube" and not ENABLE_YOUTUBE:
         raise ValueError("YouTube downloads are temporarily disabled on this instance")
 
+    if not validate_url(clean_url):
+        raise ValueError("Unsupported or invalid URL")
+
     unique_token = uuid.uuid4().hex[:10]
-    out_tmpl = os.path.join(DOWNLOADS_DIR, f"vidgrab_{unique_token}_%(title).50s.%(ext)s")
+    out_tmpl = os.path.join(
+        DOWNLOADS_DIR, f"saidigital_{unique_token}_%(title).50s.%(ext)s"
+    )
 
     if media_type == "audio":
-        ydl_opts = {
+        ydl_opts = _base_ydl_opts()
+        ydl_opts.update({
             "format": "bestaudio/best",
             "outtmpl": out_tmpl,
             "postprocessors": [
@@ -276,60 +399,61 @@ def download_media_file(
                     "preferredquality": audio_quality,
                 }
             ],
-            "postprocessor_args": {
-                "FFmpegExtractAudio": ["-threads", "4", "-preset", "ultrafast"]
-            },
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "socket_timeout": 15,
-            "concurrent_fragment_downloads": 8,
+            "concurrent_fragment_downloads": 4,
             "buffersize": 65536,
-        }
+        })
         target_ext = "mp3"
         content_type = "audio/mpeg"
     else:
         if format_id == "best":
-            selected_fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best"
+            selected_fmt = (
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+                "bestvideo+bestaudio/"
+                "best[ext=mp4]/best"
+            )
         else:
             selected_fmt = f"{format_id}+bestaudio/best/{format_id}/best"
 
-        ydl_opts = {
+        ydl_opts = _base_ydl_opts()
+        ydl_opts.update({
             "format": selected_fmt,
             "outtmpl": out_tmpl,
             "merge_output_format": "mp4",
-            "postprocessor_args": {
-                "Merger": ["-threads", "4", "-c", "copy"]  # Stream copy without re-encoding!
-            },
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "socket_timeout": 15,
-            "check_formats": False,
-            "concurrent_fragment_downloads": 8,
+            "concurrent_fragment_downloads": 4,
             "buffersize": 65536,
-        }
+        })
         target_ext = "mp4"
         content_type = "video/mp4"
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(clean_url, download=True)
-        raw_title = info_dict.get("title") if info_dict else "video"
+        raw_title = (info_dict.get("title") if info_dict else None) or "video"
 
-    # Locate generated output file
-    pattern = os.path.join(DOWNLOADS_DIR, f"vidgrab_{unique_token}_*")
+    pattern = os.path.join(DOWNLOADS_DIR, f"saidigital_{unique_token}_*")
     matching_files = glob.glob(pattern)
 
     if not matching_files:
         raise FileNotFoundError("Processed download file could not be found.")
 
+    # Prefer the requested extension if multiple were produced
     final_filepath = matching_files[0]
+    for mf in matching_files:
+        if mf.lower().endswith("." + target_ext):
+            final_filepath = mf
+            break
+
     safe_title = sanitize_filename(raw_title)
     download_filename = f"{safe_title}.{target_ext}"
 
+    # Final path-traversal guard
+    abs_path = os.path.abspath(final_filepath)
+    abs_root = os.path.abspath(DOWNLOADS_DIR)
+    if not abs_path.startswith(abs_root + os.sep):
+        raise ValueError("Resolved file path escaped the downloads directory.")
+
     return {
-        "file_path": final_filepath,
+        "file_path": abs_path,
         "filename": download_filename,
         "content_type": content_type,
-        "filesize": os.path.getsize(final_filepath),
+        "filesize": os.path.getsize(abs_path),
     }
