@@ -13,7 +13,7 @@ from utils import detect_platform, format_duration, format_size, sanitize_filena
 logger = logging.getLogger("saidigital.downloader")
 
 DOWNLOADS_DIR = os.getenv("DOWNLOADS_DIR", "downloads")
-MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "1800"))
+MAX_FILE_AGE_SECONDS = int(os.getenv("MAX_FILE_AGE_SECONDS", "300"))
 ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
 
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -276,9 +276,13 @@ def extract_video_info(url: str) -> Dict[str, Any]:
 
 
 # ==============================================================================
-# DIRECT STREAM URL
+# DIRECT STREAM URL — Storage = 0 path
 # ==============================================================================
 def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[str, str]]:
+    """
+    Return a direct CDN URL for video (muxed MP4) — Storage = 0.
+    Only returns URLs that contain BOTH video + audio in a single stream.
+    """
     clean_url = url.strip()
     if not validate_url(clean_url):
         return None
@@ -300,7 +304,16 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
     title = sanitize_filename(raw_info.get("title") or "video")
     referer = raw_info.get("webpage_url") or clean_url
 
+    def _is_muxed_mp4(f: Dict[str, Any]) -> bool:
+        return (
+            bool(f.get("url"))
+            and f.get("ext") == "mp4"
+            and f.get("vcodec") not in (None, "none")
+            and f.get("acodec") not in (None, "none")
+        )
+
     if format_id == "best":
+        # top-level direct mp4
         if raw_info.get("ext") == "mp4" and raw_info.get("url"):
             return {
                 "stream_url": raw_info["url"],
@@ -308,13 +321,7 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
                 "content_type": "video/mp4",
                 "referer": referer,
             }
-        muxed = [
-            f for f in raw_formats
-            if f.get("url")
-            and f.get("ext") == "mp4"
-            and f.get("vcodec") not in (None, "none")
-            and f.get("acodec") not in (None, "none")
-        ]
+        muxed = [f for f in raw_formats if _is_muxed_mp4(f)]
         if muxed:
             muxed.sort(
                 key=lambda x: (x.get("height") or 0, x.get("tbr") or 0),
@@ -329,20 +336,15 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
             }
         return None
 
+    # Specific format_id
     for f in raw_formats:
-        if str(f.get("format_id")) == str(format_id):
-            if (
-                f.get("url")
-                and f.get("ext") == "mp4"
-                and f.get("vcodec") not in (None, "none")
-                and f.get("acodec") not in (None, "none")
-            ):
-                return {
-                    "stream_url": f["url"],
-                    "filename": f"{title}.mp4",
-                    "content_type": "video/mp4",
-                    "referer": referer,
-                }
+        if str(f.get("format_id")) == str(format_id) and _is_muxed_mp4(f):
+            return {
+                "stream_url": f["url"],
+                "filename": f"{title}.mp4",
+                "content_type": "video/mp4",
+                "referer": referer,
+            }
     return None
 
 
