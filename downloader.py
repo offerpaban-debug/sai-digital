@@ -91,7 +91,7 @@ def cleanup_old_files() -> int:
 
 
 # ==============================================================================
-# YT-DLP BASE OPTS — SPEED OPTIMIZED
+# YT-DLP BASE OPTS
 # ==============================================================================
 def _base_ydl_opts() -> Dict[str, Any]:
     return {
@@ -110,6 +110,37 @@ def _base_ydl_opts() -> Dict[str, Any]:
         "buffersize": 1024 * 256,
         "http_chunk_size": 10 * 1024 * 1024,
     }
+
+
+# ==============================================================================
+# FALLBACK FORMAT SELECTORS
+# ==============================================================================
+def _fallback_format_selectors(format_id: str = "best", media_type: str = "video") -> List[str]:
+    """
+    Ordered list of yt-dlp format selectors — first successful one wins.
+    This handles platform policy changes where specific format names break.
+    """
+    if media_type == "audio":
+        return [
+            "bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio",
+            "bestaudio/best",
+            "worstaudio/worst",
+        ]
+
+    if format_id == "best":
+        return [
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+            "bestvideo+bestaudio/best",
+            "best[ext=mp4]/best",
+            "best",
+        ]
+
+    return [
+        f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/{format_id}",
+        f"{format_id}+bestaudio/best/{format_id}/best",
+        f"{format_id}/best",
+        "best",
+    ]
 
 
 # ==============================================================================
@@ -157,7 +188,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
     raw_formats = info.get("formats") or []
     video_formats: List[Dict[str, Any]] = []
 
-    # --- Best combined option + pre-computed direct URL ---
+    # Best direct URL
     best_direct_url = None
     if info.get("ext") == "mp4" and info.get("url"):
         best_direct_url = info["url"]
@@ -188,7 +219,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "direct_url": best_direct_url,
     })
 
-    # --- Per-resolution formats ---
     seen_heights = set()
     standard_heights = [2160, 1440, 1080, 720, 480, 360, 240, 144]
     resolution_names = {
@@ -245,7 +275,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
             "direct_url": direct_link,
         })
 
-    # --- Audio options ---
     audio_formats = [
         {
             "format_id": "mp3-320",
@@ -365,7 +394,7 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
 
 
 # ==============================================================================
-# FALLBACK: SERVER-SIDE DOWNLOAD
+# FALLBACK DOWNLOAD WITH RETRY
 # ==============================================================================
 def download_media_file(
     url: str,
@@ -388,9 +417,10 @@ def download_media_file(
     )
 
     if media_type == "audio":
-        ydl_opts = _base_ydl_opts()
-        ydl_opts.update({
-            "format": "bestaudio/best",
+        target_ext = "mp3"
+        content_type = "audio/mpeg"
+        base_opts = _base_ydl_opts()
+        base_opts.update({
             "outtmpl": out_tmpl,
             "postprocessors": [
                 {
@@ -403,33 +433,46 @@ def download_media_file(
                 "FFmpegExtractAudio": ["-threads", "8", "-preset", "ultrafast"],
             },
         })
-        target_ext = "mp3"
-        content_type = "audio/mpeg"
     else:
-        if format_id == "best":
-            selected_fmt = (
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-                "bestvideo+bestaudio/"
-                "best[ext=mp4]/best"
-            )
-        else:
-            selected_fmt = f"{format_id}+bestaudio/best/{format_id}/best"
-
-        ydl_opts = _base_ydl_opts()
-        ydl_opts.update({
-            "format": selected_fmt,
+        target_ext = "mp4"
+        content_type = "video/mp4"
+        base_opts = _base_ydl_opts()
+        base_opts.update({
             "outtmpl": out_tmpl,
             "merge_output_format": "mp4",
             "postprocessor_args": {
                 "Merger": ["-threads", "8", "-c", "copy"],
             },
         })
-        target_ext = "mp4"
-        content_type = "video/mp4"
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(clean_url, download=True)
-        raw_title = (info_dict.get("title") if info_dict else None) or "video"
+    info_dict = None
+    last_error: Optional[Exception] = None
+    selectors = _fallback_format_selectors(format_id, media_type)
+
+    for attempt_idx, selector in enumerate(selectors):
+        ydl_opts = dict(base_opts)
+        ydl_opts["format"] = selector
+        try:
+            logger.info(f"[Attempt {attempt_idx + 1}/{len(selectors)}] Selector: {selector[:90]}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info_dict = ydl.extract_info(clean_url, download=True)
+            raw_title = (info_dict.get("title") if info_dict else None) or "video"
+            logger.info(f"[OK] Download succeeded on attempt {attempt_idx + 1}")
+            break
+        except Exception as e:
+            last_error = e
+            logger.warning(f"[Attempt {attempt_idx + 1}] Failed: {e}")
+            # Clean up partial files before retry
+            pattern = os.path.join(DOWNLOADS_DIR, f"saidigital_{unique_token}_*")
+            for partial in glob.glob(pattern):
+                try:
+                    os.remove(partial)
+                except Exception:
+                    pass
+            continue
+
+    if info_dict is None:
+        raise last_error or RuntimeError("All download attempts failed")
 
     pattern = os.path.join(DOWNLOADS_DIR, f"saidigital_{unique_token}_*")
     matching_files = glob.glob(pattern)
