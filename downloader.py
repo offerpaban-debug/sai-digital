@@ -18,13 +18,12 @@ ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
 
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
-# In-memory metadata cache (TTL 10 min)
 INFO_CACHE: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL_SECONDS = 600
 
 
 # ==============================================================================
-# URL VALIDATION (server-side, hard allow-list)
+# URL VALIDATION
 # ==============================================================================
 ALLOWED_HOSTS = (
     "facebook.com", "fb.watch", "fb.com", "m.facebook.com", "www.facebook.com",
@@ -39,7 +38,6 @@ ALLOWED_HOSTS = (
 
 
 def validate_url(url: str) -> bool:
-    """Strict server-side URL validation. Returns True only for allowed platforms."""
     if not url or not isinstance(url, str):
         return False
     try:
@@ -54,7 +52,6 @@ def validate_url(url: str) -> bool:
     if not host:
         return False
 
-    # Block YouTube explicitly when disabled
     if "youtube" in host or "youtu.be" in host:
         return ENABLE_YOUTUBE
 
@@ -156,7 +153,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
     raw_formats = info.get("formats") or []
     video_formats: List[Dict[str, Any]] = []
 
-    # --- Best combined option ---
     best_direct_url = None
     if info.get("ext") == "mp4" and info.get("url"):
         best_direct_url = info["url"]
@@ -173,7 +169,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "direct_url": best_direct_url,
     })
 
-    # --- Per-resolution video formats ---
     seen_heights = set()
     standard_heights = [2160, 1440, 1080, 720, 480, 360, 240, 144]
     resolution_names = {
@@ -214,7 +209,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         has_audio = bool(acodec) and acodec != "none"
         label = resolution_names.get(matched_h, f"{matched_h}p")
 
-        # Only expose direct URL if it's an muxed MP4 (has both video+audio)
         direct_link = None
         if has_audio and ext == "mp4" and cand.get("url"):
             direct_link = cand["url"]
@@ -231,7 +225,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
             "direct_url": direct_link,
         })
 
-    # --- Audio options ---
     audio_formats = [
         {
             "format_id": "mp3-320",
@@ -283,23 +276,15 @@ def extract_video_info(url: str) -> Dict[str, Any]:
 
 
 # ==============================================================================
-# DIRECT STREAM URL LOOKUP
+# DIRECT STREAM URL
 # ==============================================================================
 def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[str, str]]:
-    """
-    Return a direct CDN URL for the requested format so we can stream
-    without writing to disk (Storage = 0).
-
-    Cache-miss safe: if the in-memory cache has expired (e.g. after a
-    Render container restart), we re-extract metadata on the fly.
-    """
     clean_url = url.strip()
     if not validate_url(clean_url):
         return None
 
     cached = INFO_CACHE.get(clean_url)
     if not cached or "raw_info" not in cached:
-        # Cache miss — rebuild by running extraction once.
         try:
             extract_video_info(clean_url)
             cached = INFO_CACHE.get(clean_url)
@@ -315,7 +300,6 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
     title = sanitize_filename(raw_info.get("title") or "video")
     referer = raw_info.get("webpage_url") or clean_url
 
-    # "best" — only if top-level muxed URL exists
     if format_id == "best":
         if raw_info.get("ext") == "mp4" and raw_info.get("url"):
             return {
@@ -324,7 +308,6 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
                 "content_type": "video/mp4",
                 "referer": referer,
             }
-        # Otherwise fall back to highest muxed mp4
         muxed = [
             f for f in raw_formats
             if f.get("url")
@@ -346,7 +329,6 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
             }
         return None
 
-    # Specific format_id
     for f in raw_formats:
         if str(f.get("format_id")) == str(format_id):
             if (
@@ -435,7 +417,6 @@ def download_media_file(
     if not matching_files:
         raise FileNotFoundError("Processed download file could not be found.")
 
-    # Prefer the requested extension if multiple were produced
     final_filepath = matching_files[0]
     for mf in matching_files:
         if mf.lower().endswith("." + target_ext):
@@ -445,7 +426,6 @@ def download_media_file(
     safe_title = sanitize_filename(raw_title)
     download_filename = f"{safe_title}.{target_ext}"
 
-    # Final path-traversal guard
     abs_path = os.path.abspath(final_filepath)
     abs_root = os.path.abspath(DOWNLOADS_DIR)
     if not abs_path.startswith(abs_root + os.sep):
