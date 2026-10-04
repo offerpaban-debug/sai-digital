@@ -19,7 +19,7 @@ ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 INFO_CACHE: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL_SECONDS = 600
+CACHE_TTL_SECONDS = 1800  # 30 min — more aggressive caching
 
 
 # ==============================================================================
@@ -91,20 +91,25 @@ def cleanup_old_files() -> int:
 
 
 # ==============================================================================
-# YT-DLP BASE OPTS
+# YT-DLP BASE OPTS — optimized for speed
 # ==============================================================================
 def _base_ydl_opts() -> Dict[str, Any]:
     return {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "socket_timeout": 15,
+        "socket_timeout": 10,
         "retries": 2,
         "fragment_retries": 2,
         "no_color": True,
         "ignoreerrors": False,
         "nocheckcertificate": True,
         "geo_bypass": True,
+        "noprogress": True,
+        # Speed boosters
+        "concurrent_fragment_downloads": 16,
+        "buffersize": 1024 * 256,
+        "http_chunk_size": 10 * 1024 * 1024,
     }
 
 
@@ -153,9 +158,24 @@ def extract_video_info(url: str) -> Dict[str, Any]:
     raw_formats = info.get("formats") or []
     video_formats: List[Dict[str, Any]] = []
 
+    # --- Best combined option ---
     best_direct_url = None
     if info.get("ext") == "mp4" and info.get("url"):
         best_direct_url = info["url"]
+    else:
+        muxed_for_best = [
+            f for f in raw_formats
+            if f.get("url")
+            and f.get("ext") == "mp4"
+            and f.get("vcodec") not in (None, "none")
+            and f.get("acodec") not in (None, "none")
+        ]
+        if muxed_for_best:
+            muxed_for_best.sort(
+                key=lambda x: (x.get("height") or 0, x.get("tbr") or 0),
+                reverse=True,
+            )
+            best_direct_url = muxed_for_best[0]["url"]
 
     video_formats.append({
         "format_id": "best",
@@ -169,6 +189,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "direct_url": best_direct_url,
     })
 
+    # --- Per-resolution formats ---
     seen_heights = set()
     standard_heights = [2160, 1440, 1080, 720, 480, 360, 240, 144]
     resolution_names = {
@@ -225,6 +246,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
             "direct_url": direct_link,
         })
 
+    # --- Audio options ---
     audio_formats = [
         {
             "format_id": "mp3-320",
@@ -265,6 +287,8 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "platform": platform_info,
         "video_formats": video_formats,
         "audio_formats": audio_formats,
+        # ⚡ NEW: pre-computed direct URL so frontend can bypass 2nd yt-dlp call
+        "best_direct_url": best_direct_url,
     }
 
     INFO_CACHE[clean_url] = {
@@ -276,13 +300,9 @@ def extract_video_info(url: str) -> Dict[str, Any]:
 
 
 # ==============================================================================
-# DIRECT STREAM URL — Storage = 0 path
+# DIRECT STREAM URL (fallback lookup)
 # ==============================================================================
 def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[str, str]]:
-    """
-    Return a direct CDN URL for video (muxed MP4) — Storage = 0.
-    Only returns URLs that contain BOTH video + audio in a single stream.
-    """
     clean_url = url.strip()
     if not validate_url(clean_url):
         return None
@@ -313,7 +333,6 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
         )
 
     if format_id == "best":
-        # top-level direct mp4
         if raw_info.get("ext") == "mp4" and raw_info.get("url"):
             return {
                 "stream_url": raw_info["url"],
@@ -336,7 +355,6 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
             }
         return None
 
-    # Specific format_id
     for f in raw_formats:
         if str(f.get("format_id")) == str(format_id) and _is_muxed_mp4(f):
             return {
@@ -349,7 +367,7 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
 
 
 # ==============================================================================
-# FALLBACK: SERVER-SIDE DOWNLOAD
+# FALLBACK: SERVER-SIDE DOWNLOAD (fast settings)
 # ==============================================================================
 def download_media_file(
     url: str,
@@ -383,8 +401,9 @@ def download_media_file(
                     "preferredquality": audio_quality,
                 }
             ],
-            "concurrent_fragment_downloads": 4,
-            "buffersize": 65536,
+            "postprocessor_args": {
+                "FFmpegExtractAudio": ["-threads", "8", "-preset", "ultrafast"],
+            },
         })
         target_ext = "mp3"
         content_type = "audio/mpeg"
@@ -403,8 +422,9 @@ def download_media_file(
             "format": selected_fmt,
             "outtmpl": out_tmpl,
             "merge_output_format": "mp4",
-            "concurrent_fragment_downloads": 4,
-            "buffersize": 65536,
+            "postprocessor_args": {
+                "Merger": ["-threads", "8", "-c", "copy"],
+            },
         })
         target_ext = "mp4"
         content_type = "video/mp4"
