@@ -51,11 +51,10 @@ logger = logging.getLogger("saidigital.app")
 # ==============================================================================
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "5"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-# 300 MB cap — free tier safe (was 500 MB)
 MAX_STREAM_BYTES = 300 * 1024 * 1024
 STREAM_CONNECT_TIMEOUT = 20
 STREAM_READ_TIMEOUT = 120
-CLEANUP_INTERVAL_SECONDS = 60  # Auto-cleanup every 60s (was 300s)
+CLEANUP_INTERVAL_SECONDS = 60
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -63,7 +62,7 @@ limiter = Limiter(
 )
 
 # ==============================================================================
-# BLOG POSTS DATA (5 posts)
+# BLOG POSTS DATA
 # ==============================================================================
 BLOG_POSTS: List[Dict[str, Any]] = [
     {
@@ -354,7 +353,7 @@ def get_related_blog_posts(slug: str, category: str, limit: int = 3) -> List[Dic
 
 
 # ==============================================================================
-# LIFESPAN — with 60s auto-cleanup
+# LIFESPAN
 # ==============================================================================
 async def periodic_cleanup_task():
     while True:
@@ -383,7 +382,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sai Digital - Universal Video Downloader & Blog Hub",
     description="High-performance universal video and audio extraction service.",
-    version="3.1.0",
+    version="3.2.0",
     lifespan=lifespan,
 )
 
@@ -512,7 +511,7 @@ async def get_media_info(payload: InfoRequest, request: Request):
 
 
 # ==============================================================================
-# STREAMING + FILE HELPERS
+# STREAMING HELPERS
 # ==============================================================================
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -533,7 +532,7 @@ def _iter_remote_chunks(stream_url: str, referer: Optional[str] = None):
         allow_redirects=True,
     ) as r:
         r.raise_for_status()
-        for chunk in r.iter_content(chunk_size=128 * 1024):
+        for chunk in r.iter_content(chunk_size=256 * 1024):
             if not chunk:
                 continue
             total += len(chunk)
@@ -549,7 +548,6 @@ def _content_disposition(filename: str) -> str:
 
 
 def _delete_after_send(path: str):
-    """Delete file from disk once response has fully finished streaming."""
     try:
         if os.path.exists(path):
             os.remove(path)
@@ -569,11 +567,12 @@ async def download_media_post(payload: DownloadRequest, request: Request):
         format_id=payload.format_id or "best",
         media_type=payload.type or "video",
         quality=payload.quality or "192",
+        direct_url_hint=None,
     )
 
 
 # ==============================================================================
-# API: DOWNLOAD-DIRECT (GET — used by frontend)
+# API: DOWNLOAD-DIRECT (GET — frontend uses this)
 # ==============================================================================
 @app.get("/api/download-direct")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
@@ -583,16 +582,24 @@ async def download_media_get(
     format_id: str = "best",
     type: str = "video",
     quality: str = "192",
+    direct_url: Optional[str] = None,
 ):
     return await _do_download(
         url=url,
         format_id=format_id or "best",
         media_type=type or "video",
         quality=quality or "192",
+        direct_url_hint=direct_url,
     )
 
 
-async def _do_download(url: str, format_id: str, media_type: str, quality: str):
+async def _do_download(
+    url: str,
+    format_id: str,
+    media_type: str,
+    quality: str,
+    direct_url_hint: Optional[str] = None,
+):
     clean_url = (url or "").strip()
     if not clean_url:
         raise HTTPException(status_code=400, detail={"en": "URL cannot be empty"})
@@ -603,7 +610,21 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             detail={"en": "Unsupported URL. Only allowed platforms are permitted."},
         )
 
-    # ---- Path 1: Direct CDN streaming (Storage = 0) ----
+    # ---- Path 0: Frontend-supplied direct URL (FASTEST — skips yt-dlp) ----
+    if media_type == "video" and direct_url_hint:
+        logger.info("[Fast-Path] Using frontend-supplied direct URL")
+        ts = int(time.time())
+        return StreamingResponse(
+            _iter_remote_chunks(direct_url_hint, referer=clean_url),
+            media_type="video/mp4",
+            headers={
+                "Content-Disposition": _content_disposition(f"video_{ts}.mp4"),
+                "Cache-Control": "no-store",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    # ---- Path 1: Direct CDN URL from cached info ----
     if media_type == "video":
         try:
             direct = await asyncio.to_thread(get_direct_stream_url, clean_url, format_id)
@@ -626,7 +647,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
                 },
             )
 
-    # ---- Path 2: Server-side download + immediate delete after serve ----
+    # ---- Path 2: Server-side fallback ----
     try:
         result = await asyncio.to_thread(
             download_media_file,
@@ -671,7 +692,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             detail={"en": f"File exceeds the {MAX_STREAM_BYTES // (1024*1024)} MB limit."},
         )
 
-    logger.info(f"[Fallback] Serving file then auto-deleting: {download_name}")
+    logger.info(f"[Fallback] Serving then auto-deleting: {download_name}")
     return FileResponse(
         path=abs_path,
         media_type=content_type,
