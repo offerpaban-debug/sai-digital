@@ -6,6 +6,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
+from urllib.parse import quote
 
 import requests
 
@@ -50,7 +51,7 @@ logger = logging.getLogger("saidigital.app")
 # ==============================================================================
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "5"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-MAX_STREAM_BYTES = 500 * 1024 * 1024  # 500 MB hard cap
+MAX_STREAM_BYTES = 500 * 1024 * 1024
 STREAM_CONNECT_TIMEOUT = 20
 STREAM_READ_TIMEOUT = 120
 
@@ -400,13 +401,11 @@ async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
-# CORS: explicit allow-list. In production, lock this down to your real domain.
 ALLOWED_ORIGINS = [
     "https://sai-digital.onrender.com",
     "http://localhost:7860",
     "http://127.0.0.1:7860",
 ]
-# Allow same-origin (no Origin header) requests always.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -480,7 +479,6 @@ async def get_media_info(payload: InfoRequest, request: Request):
     if not url:
         raise HTTPException(status_code=400, detail={"en": "URL cannot be empty"})
 
-    # Server-side URL validation
     if not validate_url(url):
         return JSONResponse(
             status_code=400,
@@ -519,7 +517,6 @@ BROWSER_UA = (
 
 
 def _iter_remote_chunks(stream_url: str, referer: Optional[str] = None):
-    """Streams from remote CDN with size cap + timeout protection."""
     headers = {"User-Agent": BROWSER_UA, "Accept": "*/*"}
     if referer:
         headers["Referer"] = referer
@@ -544,13 +541,11 @@ def _iter_remote_chunks(stream_url: str, referer: Optional[str] = None):
 
 def _content_disposition(filename: str) -> str:
     safe = sanitize_filename(filename or "media")
-    # RFC 5987 for unicode-safe filename
-    from urllib.parse import quote
     return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(safe)}"
 
 
 # ==============================================================================
-# API: DOWNLOAD (POST — JSON body; kept for API clients)
+# API: DOWNLOAD (POST)
 # ==============================================================================
 @app.post("/api/download")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
@@ -564,7 +559,7 @@ async def download_media_post(payload: DownloadRequest, request: Request):
 
 
 # ==============================================================================
-# API: DOWNLOAD-DIRECT (GET — the one the frontend uses for <a download>)
+# API: DOWNLOAD-DIRECT (GET)
 # ==============================================================================
 @app.get("/api/download-direct")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
@@ -575,8 +570,6 @@ async def download_media_get(
     type: str = "video",
     quality: str = "192",
 ):
-    # NOTE: `request: Request` MUST be a positional param BEFORE query params
-    # so FastAPI injects the real Request object, not a query string.
     return await _do_download(
         url=url,
         format_id=format_id or "best",
@@ -586,7 +579,6 @@ async def download_media_get(
 
 
 async def _do_download(url: str, format_id: str, media_type: str, quality: str):
-    """Shared download logic for POST + GET endpoints."""
     clean_url = (url or "").strip()
     if not clean_url:
         raise HTTPException(status_code=400, detail={"en": "URL cannot be empty"})
@@ -597,7 +589,6 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             detail={"en": "Unsupported URL. Only allowed platforms are permitted."},
         )
 
-    # ---- Path 1: Direct CDN URL (Storage = 0) ----
     if media_type == "video":
         try:
             direct = await asyncio.to_thread(get_direct_stream_url, clean_url, format_id)
@@ -620,7 +611,6 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
                 },
             )
 
-    # ---- Path 2: Server-side fallback (download to disk, then FileResponse) ----
     try:
         result = await asyncio.to_thread(
             download_media_file,
@@ -646,7 +636,6 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
     download_name = result["filename"]
     content_type = result["content_type"]
 
-    # Path traversal guard
     abs_path = os.path.abspath(file_path)
     abs_root = os.path.abspath(DOWNLOADS_DIR)
     if not abs_path.startswith(abs_root + os.sep):
@@ -671,7 +660,6 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             "Cache-Control": "no-store",
             "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
         },
-        background=None,
     )
 
 
