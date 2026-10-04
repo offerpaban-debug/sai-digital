@@ -402,7 +402,11 @@ async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
+# ==============================================================================
+# CORS — includes new custom domain sd.ssssobankura.org
+# ==============================================================================
 ALLOWED_ORIGINS = [
+    "https://sd.ssssobankura.org",
     "https://sai-digital.onrender.com",
     "http://localhost:7860",
     "http://127.0.0.1:7860",
@@ -410,7 +414,7 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https?://.*\.onrender\.com",
+    allow_origin_regex=r"https?://(.*\.onrender\.com|.*\.ssssobankura\.org)",
     allow_credentials=False,
     allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
@@ -572,7 +576,7 @@ async def download_media_post(payload: DownloadRequest, request: Request):
 
 
 # ==============================================================================
-# API: DOWNLOAD-DIRECT (GET — frontend uses this)
+# API: DOWNLOAD-DIRECT (GET — used by frontend)
 # ==============================================================================
 @app.get("/api/download-direct")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
