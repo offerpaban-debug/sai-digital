@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
-  // DOM ELEMENTS
+  // DOM
   // ==========================================================================
   const form = document.getElementById('download-form');
   const urlInput = document.getElementById('video-url-input');
@@ -27,14 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const audioGrid = document.getElementById('audio-formats-grid');
   const toastContainer = document.getElementById('toast-container');
 
-  // ==========================================================================
-  // STATE
-  // ==========================================================================
   let currentVideoData = null;
   let activeTab = 'video';
 
   // ==========================================================================
-  // CLIENT-SIDE PLATFORM DETECTION
+  // PLATFORM DETECTION
   // ==========================================================================
   const CLIENT_PLATFORMS = [
     { name: 'Facebook', color: '#1877F2', regex: /(?:facebook\.com|fb\.watch|fb\.com)/i },
@@ -48,9 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   // ==========================================================================
-  // TOAST SYSTEM
+  // TOAST
   // ==========================================================================
-  function showToast(title, message, type = 'info', duration = 4500) {
+  function showToast(title, message, type = 'info', duration = 3000) {
     if (!toastContainer) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -131,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (text) {
           urlInput.value = text.trim();
           checkUrlPlatform(text);
-          showToast('URL Pasted', 'Clipboard contents inserted', 'info', 2000);
+          showToast('URL Pasted', 'Clipboard contents inserted', 'info', 1500);
           triggerFetch();
         } else {
           showToast('Clipboard Empty', 'No text found in clipboard', 'info');
@@ -151,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   function createRipple(e) {
     const button = e.currentTarget;
-    if (!button || button.tagName === 'BUTTON' && button.disabled) return;
+    if (!button) return;
     const circle = document.createElement('span');
     const diameter = Math.max(button.clientWidth, button.clientHeight);
     const radius = diameter / 2;
@@ -209,17 +206,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response.ok || !result.success) {
         const errorTitle = result.error || 'Extraction Failed';
         const errorDesc = result.en || result.detail || 'Could not fetch video';
-        showToast(errorTitle, errorDesc, 'error', 6000);
+        showToast(errorTitle, errorDesc, 'error', 5000);
         return;
       }
 
       currentVideoData = result.data;
       renderResults(result.data);
-      showToast('Media Ready', 'Video formats retrieved successfully!', 'success', 3000);
+      showToast('Media Ready', 'Video formats retrieved successfully!', 'success', 2000);
 
       setTimeout(() => {
         resultsSection && resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 100);
+      }, 80);
     } catch (err) {
       showToast('Connection Error', 'Network failed or server unreachable.', 'error');
     } finally {
@@ -233,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // RENDER RESULTS
+  // RENDER
   // ==========================================================================
   function renderResults(data) {
     if (resultTitle) resultTitle.textContent = data.title || 'Untitled Video';
@@ -248,13 +245,13 @@ document.addEventListener('DOMContentLoaded', () => {
       resultPlatform.style.borderColor = `${data.platform.color}50`;
     }
 
-    renderVideoFormats(data.video_formats, data.webpage_url);
+    renderVideoFormats(data.video_formats, data.webpage_url, data.best_direct_url);
     renderAudioFormats(data.audio_formats, data.webpage_url);
 
     resultsSection && (resultsSection.style.display = 'block');
   }
 
-  function renderVideoFormats(formats, originalUrl) {
+  function renderVideoFormats(formats, originalUrl, bestDirectUrl) {
     if (!videoGrid) return;
     videoGrid.innerHTML = '';
 
@@ -288,9 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-card-download') === null && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-          // Only trigger when clicking anywhere on the card — still OK
-        }
         createRipple(e);
         initiateDownload({
           url: originalUrl,
@@ -298,6 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
           type: 'video',
           cardElement: card,
           quality: 'best',
+          // ⚡ Pass pre-computed direct URL only when it matches this format
+          directUrl: (fmt.format_id === 'best' && fmt.direct_url) ? fmt.direct_url : (bestDirectUrl && fmt.format_id === 'best' ? bestDirectUrl : null),
         });
       });
 
@@ -345,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
           type: 'audio',
           quality: fmt.quality || '192',
           cardElement: card,
+          directUrl: null,
         });
       });
 
@@ -378,9 +375,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ==========================================================================
-  // DOWNLOAD — NATIVE BROWSER DOWNLOAD via <a download>
+  // DOWNLOAD — instant, with direct-url hint
   // ==========================================================================
-  function initiateDownload({ url, format_id, type, quality, cardElement }) {
+  function initiateDownload({ url, format_id, type, quality, cardElement, directUrl }) {
     const btn = cardElement.querySelector('.btn-card-download');
     const btnText = cardElement.querySelector('.btn-text');
     const originalText = btnText ? btnText.textContent : 'Download';
@@ -391,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.style.pointerEvents = 'none';
     }
 
-    showToast('Download Started', 'Your browser will handle the download.', 'info', 3000);
+    showToast('Download Started', 'Your browser will handle the download.', 'info', 1500);
 
     const params = new URLSearchParams({
       url: url,
@@ -400,25 +397,29 @@ document.addEventListener('DOMContentLoaded', () => {
       quality: quality || '192',
     });
 
+    // ⚡ If we already have the CDN URL, pass it so backend skips yt-dlp
+    if (directUrl && type === 'video' && format_id === 'best') {
+      params.set('direct_url', directUrl);
+    }
+
     const downloadUrl = `/api/download-direct?${params.toString()}`;
 
-    // Native browser download — <a download> triggers the browser's own
-    // download manager, which correctly honors Content-Disposition and
-    // saves the file with the correct .mp4/.mp3 extension.
+    // Native browser download — instant, honors Content-Disposition
     const a = document.createElement('a');
     a.href = downloadUrl;
     a.rel = 'noopener';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => a.remove(), 3000);
+    setTimeout(() => a.remove(), 1500);
 
+    // Reset button FAST (200ms instead of 1500ms)
     setTimeout(() => {
       if (btnText) btnText.textContent = originalText;
       if (btn) {
         btn.style.opacity = '1';
         btn.style.pointerEvents = 'auto';
       }
-    }, 1500);
+    }, 200);
   }
 });
