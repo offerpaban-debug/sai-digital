@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import time
 import asyncio
@@ -21,6 +20,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 from slowapi import Limiter
@@ -51,9 +51,11 @@ logger = logging.getLogger("saidigital.app")
 # ==============================================================================
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "5"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
-MAX_STREAM_BYTES = 500 * 1024 * 1024
+# 300 MB cap — free tier safe (was 500 MB)
+MAX_STREAM_BYTES = 300 * 1024 * 1024
 STREAM_CONNECT_TIMEOUT = 20
 STREAM_READ_TIMEOUT = 120
+CLEANUP_INTERVAL_SECONDS = 60  # Auto-cleanup every 60s (was 300s)
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -61,7 +63,7 @@ limiter = Limiter(
 )
 
 # ==============================================================================
-# BLOG POSTS DATA
+# BLOG POSTS DATA (5 posts)
 # ==============================================================================
 BLOG_POSTS: List[Dict[str, Any]] = [
     {
@@ -352,17 +354,17 @@ def get_related_blog_posts(slug: str, category: str, limit: int = 3) -> List[Dic
 
 
 # ==============================================================================
-# LIFESPAN
+# LIFESPAN — with 60s auto-cleanup
 # ==============================================================================
 async def periodic_cleanup_task():
     while True:
         try:
             purged = cleanup_old_files()
             if purged > 0:
-                logger.info(f"Periodic cleaner removed {purged} expired download files.")
+                logger.info(f"Cleanup removed {purged} expired file(s).")
         except Exception as e:
-            logger.error(f"Error in cleanup background task: {e}")
-        await asyncio.sleep(300)
+            logger.error(f"Error in cleanup task: {e}")
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
@@ -381,7 +383,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sai Digital - Universal Video Downloader & Blog Hub",
     description="High-performance universal video and audio extraction service.",
-    version="3.0.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
@@ -466,6 +468,8 @@ async def health_check():
         "yt_dlp_version": yt_dlp.version.__version__,
         "youtube_enabled": os.getenv("ENABLE_YOUTUBE", "false").lower() == "true",
         "environment": ENVIRONMENT,
+        "max_file_mb": MAX_STREAM_BYTES // (1024 * 1024),
+        "cleanup_interval_seconds": CLEANUP_INTERVAL_SECONDS,
     }
 
 
@@ -508,7 +512,7 @@ async def get_media_info(payload: InfoRequest, request: Request):
 
 
 # ==============================================================================
-# SAFE STREAMING HELPERS
+# STREAMING + FILE HELPERS
 # ==============================================================================
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -544,6 +548,16 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(safe)}"
 
 
+def _delete_after_send(path: str):
+    """Delete file from disk once response has fully finished streaming."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            logger.info(f"Auto-deleted served file: {path}")
+    except Exception as e:
+        logger.warning(f"Failed to delete {path}: {e}")
+
+
 # ==============================================================================
 # API: DOWNLOAD (POST)
 # ==============================================================================
@@ -559,7 +573,7 @@ async def download_media_post(payload: DownloadRequest, request: Request):
 
 
 # ==============================================================================
-# API: DOWNLOAD-DIRECT (GET)
+# API: DOWNLOAD-DIRECT (GET — used by frontend)
 # ==============================================================================
 @app.get("/api/download-direct")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
@@ -589,6 +603,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             detail={"en": "Unsupported URL. Only allowed platforms are permitted."},
         )
 
+    # ---- Path 1: Direct CDN streaming (Storage = 0) ----
     if media_type == "video":
         try:
             direct = await asyncio.to_thread(get_direct_stream_url, clean_url, format_id)
@@ -600,7 +615,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             filename = direct["filename"]
             ctype = direct.get("content_type") or "video/mp4"
             referer = direct.get("referer") or clean_url
-            logger.info(f"Streaming directly from CDN: {filename}")
+            logger.info(f"[Direct] Streaming from CDN: {filename}")
             return StreamingResponse(
                 _iter_remote_chunks(direct["stream_url"], referer=referer),
                 media_type=ctype,
@@ -611,6 +626,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
                 },
             )
 
+    # ---- Path 2: Server-side download + immediate delete after serve ----
     try:
         result = await asyncio.to_thread(
             download_media_file,
@@ -621,7 +637,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
         )
     except Exception as exc:
         err_info = classify_error(exc)
-        logger.error(f"Media download failed: {exc}")
+        logger.error(f"[Fallback] Media download failed: {exc}")
         return JSONResponse(
             status_code=err_info["status_code"],
             content={
@@ -650,8 +666,12 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             os.remove(abs_path)
         except Exception:
             pass
-        raise HTTPException(status_code=413, detail={"en": "File exceeds the 500 MB limit."})
+        raise HTTPException(
+            status_code=413,
+            detail={"en": f"File exceeds the {MAX_STREAM_BYTES // (1024*1024)} MB limit."},
+        )
 
+    logger.info(f"[Fallback] Serving file then auto-deleting: {download_name}")
     return FileResponse(
         path=abs_path,
         media_type=content_type,
@@ -660,6 +680,7 @@ async def _do_download(url: str, format_id: str, media_type: str, quality: str):
             "Cache-Control": "no-store",
             "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
         },
+        background=BackgroundTask(_delete_after_send, abs_path),
     )
 
 
