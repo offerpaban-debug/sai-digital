@@ -1,481 +1,320 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sai Digital — Universal Video Downloader & Audio Converter</title>
-  <meta name="description" content="Download any video in seconds with Sai Digital. Fast, free, watermark-free high-definition video and MP3 audio extractor for Facebook, Instagram, TikTok, and more." />
-  
-  <!-- OpenGraph Metadata -->
-  <meta property="og:title" content="Sai Digital — Universal Video Downloader" />
-  <meta property="og:description" content="Fast • Free • No Watermark. Download high-definition videos and MP3 audio in seconds." />
-  <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#050510">
 
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>" />
+  <!-- Primary SEO -->
+  <title>Sai Digital — Fast • Free • No Watermark Video Downloader</title>
+  <meta name="description" content="Download videos from Facebook, Instagram, TikTok, Twitter/X, Pinterest, Reddit, Vimeo, and Threads — MP4 in HD or MP3 audio. Fast, free, no watermark, no signup.">
+  <meta name="keywords" content="video downloader, instagram reels download, facebook video download, tiktok download without watermark, mp3 converter, no watermark video downloader, free video downloader">
 
-  <!-- Stylesheet -->
-  <link rel="stylesheet" href="/static/style.css" />
+  <!-- Open Graph -->
+  <meta property="og:title" content="Sai Digital — Fast • Free • No Watermark Video Downloader">
+  <meta property="og:description" content="Download HD videos & MP3 audio from 8 platforms. Fast, free, no watermark, no signup.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://sd.ssssobankura.org/">
+  <meta property="og:image" content="https://sd.ssssobankura.org/static/og-image.png">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sai Digital — Fast • Free • No Watermark Video Downloader">
+  <meta name="twitter:description" content="Download HD videos & MP3 audio from 8 platforms. Fast, free, no watermark, no signup.">
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://sd.ssssobankura.org/">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- JS (defer ensures DOM is ready) -->
+  <script src="/static/auto-update.js" defer></script>
+  <script src="/static/app.js" defer></script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23a855f7'/%3E%3Cstop offset='50%25' style='stop-color:%23ec4899'/%3E%3Cstop offset='100%25' style='stop-color:%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='52' font-weight='bold' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 
-  <!-- Ambient Light Orbs -->
-  <div class="ambient-bg" aria-hidden="true">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-  </div>
-
-  <!-- Toast Notification Stack -->
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
-
-  <!-- Sticky Glass Navbar -->
-  <header class="navbar">
-    <div class="nav-container">
-      <a href="/" class="brand" aria-label="Sai Digital Homepage">
-        <div class="brand-icon-wrapper">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="6 4 19 12 6 20 6 4" fill="currentColor" fill-opacity="0.3"></polygon>
-            <path d="M12 17v4"></path>
-            <path d="M8 21h8"></path>
-          </svg>
-        </div>
-        <span class="brand-title">Sai Digital</span>
-        <span class="brand-badge">Pro</span>
-      </a>
-
-      <nav class="nav-links">
-        <a href="/" class="nav-link" style="color: var(--color-cyan); font-weight: 700;">Home</a>
-        <a href="/blog" class="nav-link">Blog</a>
-        <a href="/about" class="nav-link">About</a>
-        <a href="/contact" class="nav-link">Contact</a>
-        <div class="nav-status-badge">
-          <span class="status-dot"></span>
-          <span>Engine Online</span>
+  <!-- ==================================================================
+       HEADER
+       ================================================================== -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="/" class="logo">
+          <div class="logo-mark">S</div>
+          <span class="logo-text">Sai Digital</span>
+        </a>
+        <div class="nav-links">
+          <a href="/">Home</a>
+          <a href="/blog">Blog</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
         </div>
       </nav>
-
-      <button type="button" class="menu-toggle-btn" id="btn-menu-toggle" aria-label="Toggle mobile menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
     </div>
   </header>
 
-  <!-- Mobile Drawer -->
-  <div class="mobile-menu-drawer" id="mobile-drawer">
-    <a href="/" class="mobile-nav-link" style="color: var(--color-cyan);">Home</a>
-    <a href="/blog" class="mobile-nav-link">Blog</a>
-    <a href="/about" class="mobile-nav-link">About</a>
-    <a href="/contact" class="mobile-nav-link">Contact</a>
-    <a href="/privacy" class="mobile-nav-link">Privacy Policy</a>
-    <a href="/terms" class="mobile-nav-link">Terms of Service</a>
-  </div>
+  <!-- ==================================================================
+       MAIN
+       ================================================================== -->
+  <main class="container">
 
-  <!-- Page Wrapper -->
-  <main class="page-wrapper">
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-pill-badge">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+    <!-- HERO -->
+    <section class="hero reveal">
+      <div class="hero-badge">
+        <span class="pulse-dot"></span>
+        <span>Live &nbsp;·&nbsp; 8 platforms supported</span>
+      </div>
+      <h1>Fast • Free • No Watermark</h1>
+      <p class="subtitle">
+        Download HD videos and MP3 audio from Facebook, Instagram, TikTok, Twitter/X, Pinterest, Reddit, Vimeo, and Threads — instantly, without any signup.
+      </p>
+
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="stat-num">8</span>
+          <span class="stat-label">Platforms</span>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-num">HD</span>
+          <span class="stat-label">Quality</span>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-num">0</span>
+          <span class="stat-label">Ads / Popups</span>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-num">&lt; 1s</span>
+          <span class="stat-label">Start Time</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRENDING BANNER -->
+    <div class="trending-banner reveal" id="trending-banner">
+      <span class="trending-label">Trending</span>
+      <span class="trending-text">Loading today's highlight...</span>
+    </div>
+
+    <!-- DAILY TIP -->
+    <div class="daily-tip reveal" id="daily-tip">
+      <div class="daily-tip-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18h6"></path>
+          <path d="M10 22h4"></path>
+          <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"></path>
         </svg>
-        <span>High-Speed Video Extraction Engine</span>
       </div>
-
-      <h1 class="hero-title">
-        Download Any Video <br />
-        <span class="gradient-text">in Seconds</span>
-      </h1>
-
-      <p class="hero-subtitle">Fast • Free • No Watermark</p>
-      <p class="hero-subtitle-sub" style="font-size: 1rem; color: var(--color-cyan); font-weight: 500;">High-Definition Universal Video & Audio Extractor</p>
-    </section>
-
-    <!-- Main Downloader Card -->
-    <section class="glass-card main-download-container" aria-label="Video Downloader Input Form">
-      <form id="download-form" class="download-box" onsubmit="return false;">
-        <div class="input-group">
-          <!-- Link Icon -->
-          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-          </svg>
-
-          <!-- Input Element -->
-          <input
-            type="url"
-            id="video-url-input"
-            class="url-input"
-            placeholder="Paste public video URL here (e.g. Facebook, Instagram, TikTok, Reddit...)"
-            required
-            autocomplete="off"
-            spellcheck="false"
-          />
-
-          <!-- Platform Auto-Detect Chip -->
-          <div id="platform-chip" class="platform-detect-chip" aria-live="polite">
-            <span id="platform-chip-icon"></span>
-            <span id="platform-chip-name">Detected</span>
-          </div>
-
-          <!-- Paste Button -->
-          <button type="button" id="btn-paste" class="input-action-btn" title="Paste from clipboard">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-            </svg>
-            <span>Paste</span>
-          </button>
-        </div>
-
-        <!-- Download Action Button -->
-        <button type="submit" id="btn-submit" class="btn-fetch">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Fetch Video Formats</span>
-        </button>
-      </form>
-
-      <!-- Loading Spinner Section -->
-      <div id="loading-state" class="loading-box" aria-hidden="true">
-        <div class="spinner-ring"></div>
-        <div class="loading-text" id="loading-status-text">Analyzing video stream...</div>
-        <div class="loading-subtext">Extracting metadata and available resolutions</div>
+      <div class="daily-tip-content">
+        <div class="daily-tip-label">Daily Tip</div>
+        <div class="daily-tip-text">Loading today's tip...</div>
       </div>
+    </div>
 
-      <!-- Skeleton Shimmer Loader -->
-      <div id="skeleton-loader" class="skeleton-card" aria-hidden="true">
-        <div style="display: flex; gap: 1.5rem; margin-bottom: 2rem;">
-          <div class="skeleton-item" style="width: 280px; height: 160px;"></div>
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.75rem;">
-            <div class="skeleton-item" style="height: 24px; width: 30%;"></div>
-            <div class="skeleton-item" style="height: 32px; width: 90%;"></div>
-            <div class="skeleton-item" style="height: 20px; width: 45%;"></div>
-          </div>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-          <div class="skeleton-item" style="height: 120px;"></div>
-          <div class="skeleton-item" style="height: 120px;"></div>
-          <div class="skeleton-item" style="height: 120px;"></div>
-        </div>
+    <!-- FEATURE STRIP -->
+    <div class="feature-strip reveal">
+      <div class="feature-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span><strong>Fast</strong> downloads</span>
       </div>
+      <div class="feature-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span><strong>No</strong> watermark</span>
+      </div>
+      <div class="feature-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span><strong>Zero</strong> signup</span>
+      </div>
+      <div class="feature-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span><strong>8</strong> platforms</span>
+      </div>
+      <div class="feature-pill" id="live-indicator">
+        <span class="live-dot"></span>
+        <span><strong>Live</strong> · <span class="live-time">--:--</span></span>
+      </div>
+    </div>
 
-      <!-- Results Container (Appears after extraction) -->
-      <div id="results-section" class="results-container">
-        <!-- Overview metadata card -->
-        <div class="video-overview-card">
-          <div class="thumbnail-wrapper">
-            <img id="result-thumbnail" class="thumbnail-img" src="" alt="Video thumbnail preview" />
-            <span id="result-duration" class="duration-tag">00:00</span>
-          </div>
-
-          <div class="video-meta">
-            <div id="result-platform" class="video-platform-badge" style="background: rgba(139, 92, 246, 0.2); color: #c084fc;">
-              Platform
-            </div>
-            <h2 id="result-title" class="video-title">Video Title</h2>
-            <div class="video-author">
+    <!-- DOWNLOAD FORM -->
+    <div class="download-card glass reveal">
+      <form id="download-form" autocomplete="off" onsubmit="return false;">
+        <div class="form-group">
+          <div class="input-wrapper">
+            <span class="input-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
               </svg>
-              <span id="result-author">Creator</span>
-            </div>
+            </span>
+            <input
+              type="url"
+              id="video-url-input"
+              name="url"
+              placeholder="Paste video URL (Facebook, Instagram, TikTok, Twitter/X...)"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            >
           </div>
-        </div>
-
-        <!-- Tab Switcher: Video vs Audio -->
-        <div class="tab-switcher" role="tablist">
-          <button type="button" id="tab-video" class="tab-btn active" role="tab" aria-selected="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-              <line x1="7" y1="2" x2="7" y2="22"></line>
-              <line x1="17" y1="2" x2="17" y2="22"></line>
-              <line x1="2" y1="12" x2="22" y2="12"></line>
-            </svg>
-            <span>Video (MP4)</span>
-          </button>
-
-          <button type="button" id="tab-audio" class="tab-btn" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
-            <span>Audio (MP3)</span>
-          </button>
-        </div>
-
-        <!-- Format Cards Grid for Video -->
-        <div id="video-formats-grid" class="formats-grid" role="tabpanel"></div>
-
-        <!-- Format Cards Grid for Audio -->
-        <div id="audio-formats-grid" class="formats-grid" role="tabpanel" style="display: none;"></div>
-      </div>
-    </section>
-
-    <!-- Supported Platforms Section (No YouTube listed) -->
-    <section id="supported-platforms" class="platforms-section">
-      <div class="section-label">Universal Compatibility</div>
-      <h2 class="section-title">Supported Video Platforms</h2>
-
-      <div class="platforms-grid">
-        <!-- Facebook -->
-        <div class="platform-circle-card" style="--glow-color: rgba(24, 119, 242, 0.4);">
-          <div class="platform-icon-circle" style="color: #1877F2;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-          </div>
-          <span class="platform-name">Facebook</span>
-        </div>
-
-        <!-- Instagram -->
-        <div class="platform-circle-card" style="--glow-color: rgba(225, 48, 108, 0.4);">
-          <div class="platform-icon-circle" style="color: #E1306C;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-            </svg>
-          </div>
-          <span class="platform-name">Instagram</span>
-        </div>
-
-        <!-- TikTok -->
-        <div class="platform-circle-card" style="--glow-color: rgba(254, 44, 85, 0.4);">
-          <div class="platform-icon-circle" style="color: #FE2C55;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
-            </svg>
-          </div>
-          <span class="platform-name">TikTok</span>
-        </div>
-
-        <!-- Twitter / X -->
-        <div class="platform-circle-card" style="--glow-color: rgba(29, 161, 242, 0.4);">
-          <div class="platform-icon-circle" style="color: #1DA1F2;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-            </svg>
-          </div>
-          <span class="platform-name">Twitter / X</span>
-        </div>
-
-        <!-- Pinterest -->
-        <div class="platform-circle-card" style="--glow-color: rgba(230, 0, 35, 0.4);">
-          <div class="platform-icon-circle" style="color: #E60023;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0a12 12 0 0 0-4.37 23.18c-.06-.98-.12-2.49.03-3.56.14-.98 1-4.24 1-4.24s-.26-.52-.26-1.28c0-1.2.7-2.1 1.57-2.1.74 0 1.1.56 1.1 1.22 0 .74-.47 1.86-.72 2.89-.2.86.43 1.56 1.28 1.56 1.54 0 2.72-1.62 2.72-3.96 0-2.07-1.49-3.52-3.62-3.52-2.46 0-3.9 1.85-3.9 3.75 0 .74.29 1.54.64 1.97.07.09.08.17.06.26-.07.28-.22.9-.25 1.03-.04.17-.14.21-.32.13-1.2-.56-1.95-2.31-1.95-3.72 0-3.03 2.2-5.81 6.35-5.81 3.33 0 5.92 2.37 5.92 5.55 0 3.31-2.09 5.98-4.99 5.98-.97 0-1.89-.51-2.2-.11l-.6 2.28c-.22.84-.81 1.9-1.21 2.54A11.99 11.99 0 0 0 12 24c6.63 0 12-5.37 12-12S18.63 0 12 0z"/>
-            </svg>
-          </div>
-          <span class="platform-name">Pinterest</span>
-        </div>
-
-        <!-- Reddit -->
-        <div class="platform-circle-card" style="--glow-color: rgba(255, 69, 0, 0.4);">
-          <div class="platform-icon-circle" style="color: #FF4500;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.703zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
-            </svg>
-          </div>
-          <span class="platform-name">Reddit</span>
-        </div>
-
-        <!-- Vimeo -->
-        <div class="platform-circle-card" style="--glow-color: rgba(26, 183, 234, 0.4);">
-          <div class="platform-icon-circle" style="color: #1AB7EA;">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M22.84 6.78c-.14 3.08-2.29 7.3-6.46 12.67-4.31 5.59-7.96 8.38-10.96 8.38-1.85 0-3.41-1.71-4.69-5.13l-2.55-9.35C-2.4 11.23-2.73 9.4-2.73 7.85c0-2.38 1.23-3.57 3.69-3.57 1.84 0 3.32.74 4.45 2.21l1.83 6.94c.82 3.12 1.7 4.68 2.64 4.68.73 0 1.58-.93 2.56-2.8.97-1.87 1.48-3.3 1.52-4.28.1-1.95-.62-2.93-2.17-2.93-.72 0-1.5.17-2.33.52 1.48-4.85 4.31-7.23 8.49-7.14 3.1.09 4.61 2.08 4.54 5.96z" transform="scale(0.85) translate(4, 2)"/>
-            </svg>
-          </div>
-          <span class="platform-name">Vimeo</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
-    <section id="features" class="features-section">
-      <div style="text-align: center; margin-bottom: 2.5rem;">
-        <div class="section-label">Engine Architecture</div>
-        <h2 class="section-title">Built for Speed and Quality</h2>
-      </div>
-
-      <div class="features-grid">
-        <!-- Feature 1 -->
-        <div class="feature-box">
-          <div class="feature-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
-          </div>
-          <h3 class="feature-title">Lightning Fast</h3>
-          <p class="feature-desc">Ultra-responsive stream analysis and fast file generation powered by yt-dlp core.</p>
-        </div>
-
-        <!-- Feature 2 -->
-        <div class="feature-box">
-          <div class="feature-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
-          </div>
-          <h3 class="feature-title">Video to MP3</h3>
-          <p class="feature-desc">Extract studio-quality 320kbps MP3 audio streams on the fly using FFmpeg audio processing.</p>
-        </div>
-
-        <!-- Feature 3 -->
-        <div class="feature-box">
-          <div class="feature-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-              <line x1="12" y1="18" x2="12.01" y2="18"></line>
-            </svg>
-          </div>
-          <h3 class="feature-title">Works on Mobile</h3>
-          <p class="feature-desc">Smooth responsive touch interface optimized for Android and iOS mobile browsers.</p>
-        </div>
-
-        <!-- Feature 4 -->
-        <div class="feature-box">
-          <div class="feature-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-          </div>
-          <h3 class="feature-title">No Watermark</h3>
-          <p class="feature-desc">Pure original media stream downloaded directly without any added branding or compression.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- How it Works Section -->
-    <section id="how-it-works" class="how-it-works-section">
-      <div class="section-label">Effortless Workflow</div>
-      <h2 class="section-title">How It Works in 3 Simple Steps</h2>
-
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-number">1</div>
-          <div class="step-icon">
+          <button type="button" class="btn btn-ghost" id="btn-paste" aria-label="Paste from clipboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
-          </div>
-          <h3 class="step-title">Copy Video Link</h3>
-          <p class="step-desc">Copy the share link from any supported public post or reel.</p>
-        </div>
-
-        <div class="step-card">
-          <div class="step-number">2</div>
-          <div class="step-icon">
+            Paste
+          </button>
+          <button type="submit" class="btn btn-primary" id="btn-submit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-          </div>
-          <h3 class="step-title">Paste in Sai Digital</h3>
-          <p class="step-desc">Paste the link into the box above. Platform auto-detects instantly.</p>
+            Fetch Video Formats
+          </button>
         </div>
 
-        <div class="step-card">
-          <div class="step-number">3</div>
-          <div class="step-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+        <div class="platform-chip" id="platform-chip">
+          <span id="platform-chip-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
+          </span>
+          <span id="platform-chip-name">Detecting...</span>
+        </div>
+      </form>
+    </div>
+
+    <!-- LOADING STATE -->
+    <div class="loading-state" id="loading-state">
+      <div class="spinner"></div>
+      <div id="loading-status-text">Analyzing video stream...</div>
+    </div>
+
+    <div id="skeleton-loader" style="display: none;">
+      <div class="glass" style="padding: 1.5rem; border-radius: 18px;">
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <div style="width: 140px; height: 80px; background: rgba(255,255,255,0.05); border-radius: 12px;"></div>
+          <div style="flex: 1;">
+            <div style="height: 14px; background: rgba(255,255,255,0.05); border-radius: 6px; margin-bottom: 8px;"></div>
+            <div style="height: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; width: 60%;"></div>
           </div>
-          <h3 class="step-title">One-Click Download</h3>
-          <p class="step-desc">Choose your preferred resolution or MP3 audio and download begins immediately.</p>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
 
-  <!-- 4-Column Footer -->
-  <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-grid">
-        <!-- Col 1: Brand & Tagline -->
-        <div class="footer-col">
-          <h4>Sai Digital</h4>
-          <p>
-            Premium universal media archiving tool and tech publication. Fast, clean, watermark-free video extraction and studio-quality MP3 conversion.
-          </p>
-          <div class="footer-social-links">
-            <a href="https://facebook.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
-            <a href="https://twitter.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="X / Twitter"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-            <a href="https://instagram.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
+    <!-- RESULTS SECTION -->
+    <section class="results-section" id="results-section">
+      <!-- Result Header -->
+      <div class="glass result-header">
+        <div class="result-thumb-wrapper">
+          <img class="result-thumb" id="result-thumbnail" src="/static/img/placeholder.jpg" alt="Video thumbnail" loading="lazy">
+          <span class="result-duration" id="result-duration">00:00</span>
+        </div>
+        <div class="result-info">
+          <h3 id="result-title">Video Title</h3>
+          <div class="result-meta">
+            <span class="result-platform" id="result-platform">Platform</span>
+            <span class="result-author" id="result-author">Creator</span>
           </div>
         </div>
+      </div>
 
-        <!-- Col 2: Quick Links -->
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" id="tab-video" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          </svg>
+          Video (MP4)
+        </button>
+        <button type="button" class="tab" id="tab-audio" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          Audio (MP3)
+        </button>
+      </div>
+
+      <!-- Video formats grid -->
+      <div class="format-grid" id="video-formats-grid" role="tabpanel"></div>
+
+      <!-- Audio formats grid (hidden by default) -->
+      <div class="format-grid" id="audio-formats-grid" role="tabpanel" style="display: none;"></div>
+    </section>
+
+  </main>
+
+  <!-- ==================================================================
+       FOOTER
+       ================================================================== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
         <div class="footer-col">
-          <h4>Quick Links</h4>
+          <div class="logo" style="margin-bottom: 0.75rem;">
+            <div class="logo-mark" style="width: 32px; height: 32px; font-size: 1.1rem;">S</div>
+            <span class="logo-text" style="font-size: 1.1rem;">Sai Digital</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.55;">
+            Fast • Free • No Watermark video downloader for 8 major platforms.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
           <ul>
-            <li><a href="/">Home</a></li>
+            <li><a href="/">Downloader</a></li>
             <li><a href="/blog">Blog</a></li>
             <li><a href="/about">About Us</a></li>
-            <li><a href="/contact">Contact</a></li>
           </ul>
         </div>
 
-        <!-- Col 3: Legal -->
         <div class="footer-col">
           <h4>Legal</h4>
           <ul>
             <li><a href="/privacy">Privacy Policy</a></li>
             <li><a href="/terms">Terms of Service</a></li>
-            <li><a href="/disclaimer">Disclaimer & DMCA</a></li>
+            <li><a href="/disclaimer">Disclaimer</a></li>
           </ul>
         </div>
 
-        <!-- Col 4: Status -->
         <div class="footer-col">
-          <h4>Engine Status</h4>
-          <p style="font-size: 0.85rem; margin-bottom: 0.75rem;">
-            Powered by yt-dlp & FFmpeg media converters. High-speed multi-threaded infrastructure.
-          </p>
-          <div class="nav-status-badge">
-            <span class="status-dot"></span>
-            <span>All Services Operational</span>
-          </div>
+          <h4>Support</h4>
+          <ul>
+            <li><a href="/contact">Contact Us</a></li>
+            <li><a href="/sitemap.xml">Sitemap</a></li>
+          </ul>
         </div>
       </div>
 
-      <div class="footer-bottom-bar">
-        <div>© 2025 Sai Digital. All rights reserved.</div>
-        <div style="font-size: 0.8rem; color: var(--text-dim);">
-          Supports 90%+ Public Web Videos & Audio Streams • AdSense Ready
-        </div>
+      <div class="footer-bottom">
+        &copy; <span id="footer-year">2025</span> Sai Digital. All rights reserved. &nbsp;·&nbsp; Made for India &amp; Bangladesh.
       </div>
     </div>
   </footer>
 
-  <!-- Script Application Logic -->
-  <script src="/static/app.js"></script>
+  <!-- ==================================================================
+       TOAST CONTAINER
+       ================================================================== -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- Footer year auto-update -->
   <script>
-    const menuBtn = document.getElementById('btn-menu-toggle');
-    const drawer = document.getElementById('mobile-drawer');
-    if (menuBtn && drawer) {
-      menuBtn.addEventListener('click', () => {
-        drawer.classList.toggle('open');
-      });
-    }
+    (function () {
+      var y = document.getElementById('footer-year');
+      if (y) y.textContent = new Date().getFullYear();
+    })();
   </script>
+
 </body>
 </html>
