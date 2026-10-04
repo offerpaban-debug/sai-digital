@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import json
 import time
@@ -9,10 +8,15 @@ from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 
 import requests
-import markdown
 
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Response
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi.responses import (
+    HTMLResponse,
+    FileResponse,
+    JSONResponse,
+    StreamingResponse,
+    PlainTextResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,33 +26,42 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from utils import detect_platform, classify_error
+from utils import detect_platform, classify_error, sanitize_filename
 from downloader import (
     extract_video_info,
     download_media_file,
     get_direct_stream_url,
     cleanup_old_files,
+    validate_url,
     DOWNLOADS_DIR,
 )
 
-# Setup logging
+# ==============================================================================
+# LOGGING
+# ==============================================================================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("saidigital.app")
 
-# Rate Limiter setup
-RATE_LIMIT_PER_MINUTE = os.getenv("RATE_LIMIT_PER_MINUTE", "20")
+# ==============================================================================
+# CONFIG
+# ==============================================================================
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "5"))
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+MAX_STREAM_BYTES = 500 * 1024 * 1024  # 500 MB hard cap
+STREAM_CONNECT_TIMEOUT = 20
+STREAM_READ_TIMEOUT = 120
+
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[f"{RATE_LIMIT_PER_MINUTE}/minute"]
+    default_limits=[f"{RATE_LIMIT_PER_MINUTE}/minute"],
 )
 
 # ==============================================================================
-# BLOG POSTS DATA (Python List of Objects - 100% English)
+# BLOG POSTS DATA
 # ==============================================================================
-
 BLOG_POSTS: List[Dict[str, Any]] = [
     {
         "slug": "how-to-download-facebook-videos-mobile-2025",
@@ -63,7 +76,7 @@ BLOG_POSTS: List[Dict[str, Any]] = [
         "content_html": """
 <h2>Introduction: Why Save Facebook Videos Locally?</h2>
 <p>Facebook is home to millions of educational clips, entertaining reels, news reports, and creative masterclasses shared every day. However, Facebook does not provide a native button to save these media files directly into your smartphone gallery or camera roll. If you want to watch a tutorial offline during a commute, backup your favorite creator's recipe, or share a video on messaging apps, having a reliable online video downloader is essential.</p>
-<p>In this updated 2025 guide, we break down step-by-step instructions for both <strong>Android</strong> and <strong>iOS (iPhone & iPad)</strong> users to download public Facebook videos in 1080p Full HD without installing suspicious third-party apps or risk-laden APKs.</p>
+<p>In this updated 2025 guide, we break down step-by-step instructions for both <strong>Android</strong> and <strong>iOS (iPhone &amp; iPad)</strong> users to download public Facebook videos in 1080p Full HD without installing suspicious third-party apps or risk-laden APKs.</p>
 
 <h2>Step 1: Copy the Public Video Link from Facebook</h2>
 <p>Whether you are using the Facebook Android app, iOS app, or mobile web browser, getting the correct shareable link is straightforward:</p>
@@ -71,7 +84,7 @@ BLOG_POSTS: List[Dict[str, Any]] = [
   <li>Open the Facebook application and locate the video or reel you wish to download.</li>
   <li>Tap the <strong>Share</strong> button located beneath the video post.</li>
   <li>In the share sheet that appears, select <strong>Copy Link</strong>.</li>
-  <li>Verify that the post privacy is set to <strong>Public</strong> (indicated by the globe icon 🌐). Private group videos or friend-only posts cannot be fetched by public download tools due to platform privacy safeguards.</li>
+  <li>Verify that the post privacy is set to <strong>Public</strong> (indicated by the globe icon). Private group videos or friend-only posts cannot be fetched by public download tools due to platform privacy safeguards.</li>
 </ol>
 <blockquote><strong>Pro Tip:</strong> If you don't see the "Copy Link" button immediately, tap the three dots (<code>...</code>) in the upper-right corner of the video card and tap <strong>Copy link</strong>.</blockquote>
 
@@ -101,16 +114,16 @@ BLOG_POSTS: List[Dict[str, Any]] = [
   <li>Tap the <strong>Share</strong> icon at the bottom-left and choose <strong>Save Video</strong> to move it permanently into your <strong>Apple Photos</strong> camera roll.</li>
 </ul>
 
-<h2>Safety & Copyright Guidelines</h2>
+<h2>Safety &amp; Copyright Guidelines</h2>
 <ol>
   <li><strong>Never install unknown APKs or browser extensions:</strong> Third-party apps frequently bundle adware or track account credentials. Browser-based online tools are 100% safer.</li>
-  <li><strong>Respect Copyright & Intellectual Property:</strong> Only download videos for personal offline reference. Do not re-upload or commercially monetize other creators' content without permission.</li>
+  <li><strong>Respect Copyright &amp; Intellectual Property:</strong> Only download videos for personal offline reference. Do not re-upload or commercially monetize other creators' content without permission.</li>
   <li><strong>Respect Private Profiles:</strong> Sai Digital strictly adheres to user privacy boundaries and does not download private or DRM-encrypted streams.</li>
 </ol>
 
 <h2>Summary</h2>
 <p>Downloading Facebook videos on mobile in 2025 is seamless when using a browser-based, zero-installation platform like Sai Digital. With support for high-bitrate MP4 video and pristine audio conversion, you can enjoy your favorite content anytime, anywhere without buffering or watermark clutter.</p>
-        """
+        """,
     },
     {
         "slug": "instagram-reels-download-complete-tutorial",
@@ -146,37 +159,21 @@ BLOG_POSTS: List[Dict[str, Any]] = [
   <li><strong>Original Audio MP3:</strong> Want just the trending background song or podcast clip? Switch to the "Audio (MP3)" tab to save pure 320kbps sound.</li>
 </ul>
 
-<h2>Troubleshooting & FAQ</h2>
+<h2>Troubleshooting &amp; FAQ</h2>
 <table>
   <thead>
-    <tr>
-      <th>Issue</th>
-      <th>Possible Cause</th>
-      <th>Recommended Solution</th>
-    </tr>
+    <tr><th>Issue</th><th>Possible Cause</th><th>Recommended Solution</th></tr>
   </thead>
   <tbody>
-    <tr>
-      <td>Video Not Found</td>
-      <td>Profile is set to private</td>
-      <td>Only public reels can be fetched</td>
-    </tr>
-    <tr>
-      <td>No Audio Playback</td>
-      <td>Device media volume muted</td>
-      <td>Check phone sound and silent mode switch</td>
-    </tr>
-    <tr>
-      <td>Broken Link Error</td>
-      <td>Expired story or temporary link</td>
-      <td>Ensure you copied the permanent Reel URL</td>
-    </tr>
+    <tr><td>Video Not Found</td><td>Profile is set to private</td><td>Only public reels can be fetched</td></tr>
+    <tr><td>No Audio Playback</td><td>Device media volume muted</td><td>Check phone sound and silent mode switch</td></tr>
+    <tr><td>Broken Link Error</td><td>Expired story or temporary link</td><td>Ensure you copied the permanent Reel URL</td></tr>
   </tbody>
 </table>
 
 <h2>Conclusion</h2>
 <p>Saving Instagram Reels for offline reference, creative moodboards, or study notes is effortless with Sai Digital. Enjoy rapid, watermark-free access to your favorite media library on any device.</p>
-        """
+        """,
     },
     {
         "slug": "tiktok-video-download-without-watermark",
@@ -194,7 +191,7 @@ BLOG_POSTS: List[Dict[str, Any]] = [
 <p>For content creators managing backups of their own published material or researchers studying short-form video choreography, having a clean, watermark-free high-definition file is essential.</p>
 
 <h2>3 Working Methods to Download TikToks Without Watermark</h2>
-<h3>Method 1: Online Web Downloader (Fastest & Safest)</h3>
+<h3>Method 1: Online Web Downloader (Fastest &amp; Safest)</h3>
 <p>Using a zero-installation web downloader like <strong>Sai Digital</strong> is the superior method. You do not need to install dubious apps or share your account credentials. You simply paste the TikTok link, and the system delivers the original unbranded MP4 stream directly from the content delivery network.</p>
 
 <h3>Method 2: iOS Live Photo Conversion</h3>
@@ -213,39 +210,19 @@ BLOG_POSTS: List[Dict[str, Any]] = [
 <h2>Feature Comparison Table</h2>
 <table>
   <thead>
-    <tr>
-      <th>Feature</th>
-      <th>Official TikTok App</th>
-      <th>Sai Digital Downloader</th>
-    </tr>
+    <tr><th>Feature</th><th>Official TikTok App</th><th>Sai Digital Downloader</th></tr>
   </thead>
   <tbody>
-    <tr>
-      <td>Watermark Status</td>
-      <td>Bouncing logo overlay</td>
-      <td>100% Watermark-Free</td>
-    </tr>
-    <tr>
-      <td>Resolution Quality</td>
-      <td>Compressed 720p</td>
-      <td>Full HD 1080p Original</td>
-    </tr>
-    <tr>
-      <td>Audio Extraction</td>
-      <td>Not Available</td>
-      <td>Dedicated 320kbps MP3 Audio</td>
-    </tr>
-    <tr>
-      <td>Storage Footprint</td>
-      <td>App required (300MB+)</td>
-      <td>Zero installation required</td>
-    </tr>
+    <tr><td>Watermark Status</td><td>Bouncing logo overlay</td><td>100% Watermark-Free</td></tr>
+    <tr><td>Resolution Quality</td><td>Compressed 720p</td><td>Full HD 1080p Original</td></tr>
+    <tr><td>Audio Extraction</td><td>Not Available</td><td>Dedicated 320kbps MP3 Audio</td></tr>
+    <tr><td>Storage Footprint</td><td>App required (300MB+)</td><td>Zero installation required</td></tr>
   </tbody>
 </table>
 
 <h2>Ethical Guidelines</h2>
 <p>Always respect original creators. When using watermark-free clips for editorial, educational, or review purposes, always provide proper attribution to the original author.</p>
-        """
+        """,
     },
     {
         "slug": "how-to-convert-any-video-to-mp3-audio",
@@ -280,38 +257,18 @@ BLOG_POSTS: List[Dict[str, Any]] = [
 <h2>Bitrate Comparison Guide</h2>
 <table>
   <thead>
-    <tr>
-      <th>Bitrate</th>
-      <th>Audio Quality</th>
-      <th>Approx. Size (5-min track)</th>
-      <th>Best For</th>
-    </tr>
+    <tr><th>Bitrate</th><th>Audio Quality</th><th>Approx. Size (5-min track)</th><th>Best For</th></tr>
   </thead>
   <tbody>
-    <tr>
-      <td><strong>320 kbps</strong></td>
-      <td>Studio Master Quality</td>
-      <td>~11.5 MB</td>
-      <td>Music, Concerts, Audiophile Headphones</td>
-    </tr>
-    <tr>
-      <td><strong>192 kbps</strong></td>
-      <td>Crisp & Clear</td>
-      <td>~7.0 MB</td>
-      <td>Podcasts, Talks, Everyday Listening</td>
-    </tr>
-    <tr>
-      <td><strong>128 kbps</strong></td>
-      <td>Standard Sound</td>
-      <td>~4.6 MB</td>
-      <td>Voice Memos, Spoken Word Lectures</td>
-    </tr>
+    <tr><td><strong>320 kbps</strong></td><td>Studio Master Quality</td><td>~11.5 MB</td><td>Music, Concerts, Audiophile Headphones</td></tr>
+    <tr><td><strong>192 kbps</strong></td><td>Crisp &amp; Clear</td><td>~7.0 MB</td><td>Podcasts, Talks, Everyday Listening</td></tr>
+    <tr><td><strong>128 kbps</strong></td><td>Standard Sound</td><td>~4.6 MB</td><td>Voice Memos, Spoken Word Lectures</td></tr>
   </tbody>
 </table>
 
 <h2>Summary</h2>
 <p>Converting video into MP3 is the ultimate way to build an offline audio library on your phone. Try Sai Digital instant audio engine today for crisp, watermark-free listening on any device.</p>
-        """
+        """,
     },
     {
         "slug": "top-10-safe-video-downloader-sites-2025",
@@ -354,12 +311,12 @@ BLOG_POSTS: List[Dict[str, Any]] = [
 
 <h2>Conclusion</h2>
 <p>Safe, ad-free video downloading is achievable with modern web standards. By choosing clean, transparent platforms like Sai Digital, you can enjoy seamless offline entertainment while keeping your devices thoroughly secure.</p>
-        """
-    }
+        """,
+    },
 ]
 
+
 def get_all_blog_posts(category: Optional[str] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Returns filtered blog posts (read-only, secure)."""
     posts = BLOG_POSTS
     if category and category.lower() != "all":
         posts = [p for p in posts if p.get("category", "").lower() == category.lower()]
@@ -373,30 +330,29 @@ def get_all_blog_posts(category: Optional[str] = None, search: Optional[str] = N
         ]
     return posts
 
+
 def get_blog_post_by_slug(slug: str) -> Optional[Dict[str, Any]]:
-    """Finds a single post by slug."""
     for p in BLOG_POSTS:
         if p["slug"] == slug:
             return p
     return None
 
+
 def get_all_categories() -> List[str]:
-    """Returns unique list of blog categories."""
-    cats = sorted(list(set(p["category"] for p in BLOG_POSTS if p.get("category"))))
-    return cats
+    return sorted(list(set(p["category"] for p in BLOG_POSTS if p.get("category"))))
+
 
 def get_related_blog_posts(slug: str, category: str, limit: int = 3) -> List[Dict[str, Any]]:
-    """Returns related posts excluding current."""
     related = [p for p in BLOG_POSTS if p["slug"] != slug and p.get("category") == category]
     if len(related) < limit:
         others = [p for p in BLOG_POSTS if p["slug"] != slug and p not in related]
         related.extend(others)
     return related[:limit]
 
-# ==============================================================================
-# LIFESPAN & APPLICATION SETUP
-# ==============================================================================
 
+# ==============================================================================
+# LIFESPAN
+# ==============================================================================
 async def periodic_cleanup_task():
     while True:
         try:
@@ -407,6 +363,7 @@ async def periodic_cleanup_task():
             logger.error(f"Error in cleanup background task: {e}")
         await asyncio.sleep(300)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -416,33 +373,50 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     logger.info("Sai Digital background tasks stopped.")
 
+
+# ==============================================================================
+# APP
+# ==============================================================================
 app = FastAPI(
     title="Sai Digital - Universal Video Downloader & Blog Hub",
-    description="High-performance universal video and audio extraction service with comprehensive tech guides.",
-    version="2.1.0",
+    description="High-performance universal video and audio extraction service.",
+    version="3.0.0",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+
 
 @app.exception_handler(RateLimitExceeded)
 async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
         status_code=429,
         content={
+            "success": False,
             "error": "Rate limited",
-            "en": "Too many requests, please wait a minute",
+            "en": "Too many requests, please wait a minute.",
             "detail": "Rate limit exceeded. Maximum requests reached.",
         },
     )
 
+
+# CORS: explicit allow-list. In production, lock this down to your real domain.
+ALLOWED_ORIGINS = [
+    "https://sai-digital.onrender.com",
+    "http://localhost:7860",
+    "http://127.0.0.1:7860",
+]
+# Allow same-origin (no Origin header) requests always.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https?://.*\.onrender\.com",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Length"],
 )
 
-# Mount Static and Template Assets
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -451,9 +425,13 @@ os.makedirs(TEMPLATES_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# Request Models
+
+# ==============================================================================
+# MODELS
+# ==============================================================================
 class InfoRequest(BaseModel):
     url: str
+
 
 class DownloadRequest(BaseModel):
     url: str
@@ -461,24 +439,26 @@ class DownloadRequest(BaseModel):
     type: Optional[str] = "video"
     quality: Optional[str] = "192"
 
+
 class ContactRequest(BaseModel):
     name: str
     email: str
     subject: Optional[str] = ""
     message: str
 
-# ----------------- Downloader Endpoints ----------------- #
 
+# ==============================================================================
+# PAGES
+# ==============================================================================
 @app.get("/", response_class=HTMLResponse)
 @app.head("/")
 async def serve_index(request: Request):
-    """Serves the Sai Digital Downloader homepage."""
     return templates.TemplateResponse(request=request, name="index.html")
+
 
 @app.get("/health")
 @app.head("/health")
 async def health_check():
-    """Health status and configuration inspection."""
     import yt_dlp
     return {
         "status": "healthy",
@@ -486,18 +466,30 @@ async def health_check():
         "engine": "yt-dlp",
         "yt_dlp_version": yt_dlp.version.__version__,
         "youtube_enabled": os.getenv("ENABLE_YOUTUBE", "false").lower() == "true",
-        "environment": os.getenv("ENVIRONMENT", "production"),
+        "environment": ENVIRONMENT,
     }
 
+
+# ==============================================================================
+# API: INFO
+# ==============================================================================
 @app.post("/api/info")
-@limiter.limit(f"{int(RATE_LIMIT_PER_MINUTE) * 2}/minute")
+@limiter.limit(f"{max(RATE_LIMIT_PER_MINUTE * 2, 10)}/minute")
 async def get_media_info(payload: InfoRequest, request: Request):
-    """Extracts video metadata, resolutions, and audio options asynchronously with caching."""
-    url = payload.url.strip()
+    url = (payload.url or "").strip()
     if not url:
-        raise HTTPException(
+        raise HTTPException(status_code=400, detail={"en": "URL cannot be empty"})
+
+    # Server-side URL validation
+    if not validate_url(url):
+        return JSONResponse(
             status_code=400,
-            detail={"en": "URL cannot be empty"}
+            content={
+                "success": False,
+                "error": "Unsupported URL",
+                "en": "This link is not from a supported platform.",
+                "detail": "Only Facebook, Instagram, TikTok, Twitter/X, Pinterest, Reddit, Vimeo, Threads are supported.",
+            },
         )
 
     try:
@@ -516,73 +508,127 @@ async def get_media_info(payload: InfoRequest, request: Request):
             },
         )
 
-def stream_remote_chunks(stream_url: str):
-    """Streams data chunks directly from remote CDN to client browser."""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    }
-    with requests.get(stream_url, headers=headers, stream=True, timeout=20) as r:
-        r.raise_for_status()
-        for chunk in r.iter_content(chunk_size=65536):
-            if chunk:
-                yield chunk
 
+# ==============================================================================
+# SAFE STREAMING HELPERS
+# ==============================================================================
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+
+def _iter_remote_chunks(stream_url: str, referer: Optional[str] = None):
+    """Streams from remote CDN with size cap + timeout protection."""
+    headers = {"User-Agent": BROWSER_UA, "Accept": "*/*"}
+    if referer:
+        headers["Referer"] = referer
+    total = 0
+    with requests.get(
+        stream_url,
+        headers=headers,
+        stream=True,
+        timeout=(STREAM_CONNECT_TIMEOUT, STREAM_READ_TIMEOUT),
+        allow_redirects=True,
+    ) as r:
+        r.raise_for_status()
+        for chunk in r.iter_content(chunk_size=128 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > MAX_STREAM_BYTES:
+                logger.warning("Stream exceeded max size cap; aborting.")
+                break
+            yield chunk
+
+
+def _content_disposition(filename: str) -> str:
+    safe = sanitize_filename(filename or "media")
+    # RFC 5987 for unicode-safe filename
+    from urllib.parse import quote
+    return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(safe)}"
+
+
+# ==============================================================================
+# API: DOWNLOAD (POST — JSON body; kept for API clients)
+# ==============================================================================
 @app.post("/api/download")
 @limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
-async def download_media(payload: DownloadRequest, request: Request, background_tasks: BackgroundTasks):
-    """Downloads or streams requested media."""
-    url = payload.url.strip()
-    format_id = payload.format_id or "best"
-    media_type = payload.type or "video"
-    audio_quality = payload.quality or "192"
+async def download_media_post(payload: DownloadRequest, request: Request):
+    return await _do_download(
+        url=payload.url,
+        format_id=payload.format_id or "best",
+        media_type=payload.type or "video",
+        quality=payload.quality or "192",
+    )
 
-    if not url:
+
+# ==============================================================================
+# API: DOWNLOAD-DIRECT (GET — the one the frontend uses for <a download>)
+# ==============================================================================
+@app.get("/api/download-direct")
+@limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
+async def download_media_get(
+    request: Request,
+    url: str,
+    format_id: str = "best",
+    type: str = "video",
+    quality: str = "192",
+):
+    # NOTE: `request: Request` MUST be a positional param BEFORE query params
+    # so FastAPI injects the real Request object, not a query string.
+    return await _do_download(
+        url=url,
+        format_id=format_id or "best",
+        media_type=type or "video",
+        quality=quality or "192",
+    )
+
+
+async def _do_download(url: str, format_id: str, media_type: str, quality: str):
+    """Shared download logic for POST + GET endpoints."""
+    clean_url = (url or "").strip()
+    if not clean_url:
+        raise HTTPException(status_code=400, detail={"en": "URL cannot be empty"})
+
+    if not validate_url(clean_url):
         raise HTTPException(
             status_code=400,
-            detail={"en": "URL cannot be empty"}
+            detail={"en": "Unsupported URL. Only allowed platforms are permitted."},
         )
 
+    # ---- Path 1: Direct CDN URL (Storage = 0) ----
+    if media_type == "video":
+        try:
+            direct = await asyncio.to_thread(get_direct_stream_url, clean_url, format_id)
+        except Exception as e:
+            logger.warning(f"Direct URL lookup failed: {e}")
+            direct = None
+
+        if direct and direct.get("stream_url"):
+            filename = direct["filename"]
+            ctype = direct.get("content_type") or "video/mp4"
+            referer = direct.get("referer") or clean_url
+            logger.info(f"Streaming directly from CDN: {filename}")
+            return StreamingResponse(
+                _iter_remote_chunks(direct["stream_url"], referer=referer),
+                media_type=ctype,
+                headers={
+                    "Content-Disposition": _content_disposition(filename),
+                    "Cache-Control": "no-store",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+
+    # ---- Path 2: Server-side fallback (download to disk, then FileResponse) ----
     try:
-        if media_type == "video":
-            direct_info = get_direct_stream_url(url, format_id)
-            if direct_info and direct_info.get("stream_url"):
-                stream_url = direct_info["stream_url"]
-                download_name = direct_info["filename"]
-                content_type = direct_info.get("content_type", "video/mp4")
-
-                return StreamingResponse(
-                    stream_remote_chunks(stream_url),
-                    media_type=content_type,
-                    headers={
-                        "Content-Disposition": f'attachment; filename="{download_name}"',
-                        "Cache-Control": "no-cache",
-                        "Access-Control-Expose-Headers": "Content-Disposition",
-                    }
-                )
-
         result = await asyncio.to_thread(
             download_media_file,
-            url,
+            clean_url,
             format_id,
             media_type,
-            audio_quality
+            quality,
         )
-
-        file_path = result["file_path"]
-        download_name = result["filename"]
-        content_type = result["content_type"]
-
-        return FileResponse(
-            path=file_path,
-            filename=download_name,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{download_name}"',
-                "Cache-Control": "no-cache",
-                "Access-Control-Expose-Headers": "Content-Disposition",
-            }
-        )
-
     except Exception as exc:
         err_info = classify_error(exc)
         logger.error(f"Media download failed: {exc}")
@@ -596,26 +642,44 @@ async def download_media(payload: DownloadRequest, request: Request, background_
             },
         )
 
-@app.get("/api/download-direct")
-async def download_media_get(
-    url: str,
-    format_id: Optional[str] = "best",
-    type: Optional[str] = "video",
-    quality: Optional[str] = "192",
-    request: Request = None,
-):
-    """GET-based direct download endpoint to facilitate standard one-click native browser downloads."""
-    return await download_media(
-        DownloadRequest(url=url, format_id=format_id, type=type, quality=quality),
-        request=request,
-        background_tasks=BackgroundTasks()
+    file_path = result["file_path"]
+    download_name = result["filename"]
+    content_type = result["content_type"]
+
+    # Path traversal guard
+    abs_path = os.path.abspath(file_path)
+    abs_root = os.path.abspath(DOWNLOADS_DIR)
+    if not abs_path.startswith(abs_root + os.sep):
+        raise HTTPException(status_code=400, detail={"en": "Invalid file path."})
+
+    if not os.path.exists(abs_path):
+        raise HTTPException(status_code=404, detail={"en": "File not found after processing."})
+
+    filesize = os.path.getsize(abs_path)
+    if filesize > MAX_STREAM_BYTES:
+        try:
+            os.remove(abs_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=413, detail={"en": "File exceeds the 500 MB limit."})
+
+    return FileResponse(
+        path=abs_path,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": _content_disposition(download_name),
+            "Cache-Control": "no-store",
+            "Access-Control-Expose-Headers": "Content-Disposition, Content-Length",
+        },
+        background=None,
     )
 
-# ----------------- Blog System Endpoints (Python In-Memory Data) ----------------- #
 
+# ==============================================================================
+# BLOG
+# ==============================================================================
 @app.get("/blog", response_class=HTMLResponse)
 async def blog_list(request: Request, category: Optional[str] = None, q: Optional[str] = None):
-    """Serves the blog listing page with category filters and search box."""
     posts = get_all_blog_posts(category=category, search=q)
     categories = get_all_categories()
     return templates.TemplateResponse(
@@ -626,51 +690,54 @@ async def blog_list(request: Request, category: Optional[str] = None, q: Optiona
             "categories": categories,
             "current_category": category,
             "search_query": q,
-        }
+        },
     )
+
 
 @app.get("/blog/{slug}", response_class=HTMLResponse)
 async def blog_post_detail(slug: str, request: Request):
-    """Serves an individual SEO-rich blog post page."""
     post = get_blog_post_by_slug(slug)
     if not post:
         raise HTTPException(status_code=404, detail="Blog post not found")
-
     related = get_related_blog_posts(slug, post.get("category", "General"), limit=3)
     return templates.TemplateResponse(
         request=request,
         name="post.html",
-        context={
-            "post": post,
-            "related_posts": related,
-        }
+        context={"post": post, "related_posts": related},
     )
 
-# ----------------- Legal, About & Support Pages ----------------- #
 
+# ==============================================================================
+# STATIC PAGES
+# ==============================================================================
 @app.get("/about", response_class=HTMLResponse)
 async def about_page(request: Request):
-    """Serves the About Us page."""
     return templates.TemplateResponse(request=request, name="about.html")
+
 
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_page(request: Request):
-    """Serves the GDPR, AdSense, and India DPDP-compliant Privacy Policy."""
     return templates.TemplateResponse(request=request, name="privacy.html")
+
 
 @app.get("/terms", response_class=HTMLResponse)
 async def terms_page(request: Request):
-    """Serves the Terms of Service & DMCA copyright policy."""
     return templates.TemplateResponse(request=request, name="terms.html")
+
 
 @app.get("/contact", response_class=HTMLResponse)
 async def contact_page(request: Request):
-    """Serves the Contact Us page."""
     return templates.TemplateResponse(request=request, name="contact.html")
 
+
+@app.get("/disclaimer", response_class=HTMLResponse)
+async def disclaimer_page(request: Request):
+    return templates.TemplateResponse(request=request, name="disclaimer.html")
+
+
 @app.post("/api/contact")
-async def contact_submit(payload: ContactRequest):
-    """Logs contact form inquiries to a persistent contacts record."""
+@limiter.limit("3/minute")
+async def contact_submit(payload: ContactRequest, request: Request):
     try:
         contacts_file = os.path.join(DOWNLOADS_DIR, "contact_inquiries.json")
         entries = []
@@ -683,10 +750,10 @@ async def contact_submit(payload: ContactRequest):
 
         new_entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "name": payload.name.strip(),
-            "email": payload.email.strip(),
-            "subject": payload.subject.strip() if payload.subject else "General Inquiry",
-            "message": payload.message.strip(),
+            "name": payload.name.strip()[:200],
+            "email": payload.email.strip()[:200],
+            "subject": (payload.subject or "General Inquiry").strip()[:300],
+            "message": payload.message.strip()[:5000],
         }
         entries.append(new_entry)
 
@@ -697,21 +764,19 @@ async def contact_submit(payload: ContactRequest):
         return {"success": True, "message": "Inquiry successfully recorded."}
     except Exception as e:
         logger.error(f"Contact form logging error: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "detail": "Unable to save inquiry."})
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": "Unable to save inquiry."},
+        )
 
-@app.get("/disclaimer", response_class=HTMLResponse)
-async def disclaimer_page(request: Request):
-    """Serves the legal disclaimer & non-affiliation statement."""
-    return templates.TemplateResponse(request=request, name="disclaimer.html")
 
-# ----------------- SEO: Sitemap & Robots ----------------- #
-
+# ==============================================================================
+# SEO
+# ==============================================================================
 @app.get("/sitemap.xml")
 async def sitemap_xml(request: Request):
-    """Dynamically generates standard XML sitemap for search engines & AdSense crawlers."""
     base_url = str(request.base_url).rstrip("/")
     current_date = time.strftime("%Y-%m-%d")
-
     xml_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
@@ -723,36 +788,27 @@ async def sitemap_xml(request: Request):
         f'  <url><loc>{base_url}/terms</loc><lastmod>{current_date}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>',
         f'  <url><loc>{base_url}/disclaimer</loc><lastmod>{current_date}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>',
     ]
-
     for p in BLOG_POSTS:
         xml_lines.append(
             f'  <url><loc>{base_url}/blog/{p["slug"]}</loc><lastmod>{current_date}</lastmod><changefreq>weekly</changefreq><priority>0.85</priority></url>'
         )
-
-    xml_lines.append('</urlset>')
+    xml_lines.append("</urlset>")
     return Response(content="\n".join(xml_lines), media_type="application/xml")
+
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt(request: Request):
-    """Serves standard robots.txt permitting all benign indexing crawlers."""
     base_url = str(request.base_url).rstrip("/")
-    return f"""User-agent: *
-Allow: /
+    return f"User-agent: *\nAllow: /\n\nSitemap: {base_url}/sitemap.xml\n"
 
-Sitemap: {base_url}/sitemap.xml
-"""
 
+# ==============================================================================
+# RUNNER
+# ==============================================================================
 if __name__ == "__main__":
     import uvicorn
-    import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=None)
-    parser.add_argument("--host", type=str, default=None)
-    args, unknown = parser.parse_known_args()
-
-    port = args.port or int(os.getenv("PORT", "7860"))
-    host = args.host or os.getenv("HOST", "0.0.0.0")
-
+    port = int(os.getenv("PORT", "7860"))
+    host = os.getenv("HOST", "0.0.0.0")
     logger.info(f"Starting Sai Digital on {host}:{port}")
     uvicorn.run(app, host=host, port=port)
