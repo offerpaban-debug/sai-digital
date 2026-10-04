@@ -19,7 +19,7 @@ ENABLE_YOUTUBE = os.getenv("ENABLE_YOUTUBE", "false").lower() == "true"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 INFO_CACHE: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL_SECONDS = 1800  # 30 min — more aggressive caching
+CACHE_TTL_SECONDS = 1800
 
 
 # ==============================================================================
@@ -91,7 +91,7 @@ def cleanup_old_files() -> int:
 
 
 # ==============================================================================
-# YT-DLP BASE OPTS — optimized for speed
+# YT-DLP BASE OPTS — SPEED OPTIMIZED
 # ==============================================================================
 def _base_ydl_opts() -> Dict[str, Any]:
     return {
@@ -106,7 +106,6 @@ def _base_ydl_opts() -> Dict[str, Any]:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "noprogress": True,
-        # Speed boosters
         "concurrent_fragment_downloads": 16,
         "buffersize": 1024 * 256,
         "http_chunk_size": 10 * 1024 * 1024,
@@ -158,7 +157,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
     raw_formats = info.get("formats") or []
     video_formats: List[Dict[str, Any]] = []
 
-    # --- Best combined option ---
+    # --- Best combined option + pre-computed direct URL ---
     best_direct_url = None
     if info.get("ext") == "mp4" and info.get("url"):
         best_direct_url = info["url"]
@@ -287,7 +286,6 @@ def extract_video_info(url: str) -> Dict[str, Any]:
         "platform": platform_info,
         "video_formats": video_formats,
         "audio_formats": audio_formats,
-        # ⚡ NEW: pre-computed direct URL so frontend can bypass 2nd yt-dlp call
         "best_direct_url": best_direct_url,
     }
 
@@ -300,7 +298,7 @@ def extract_video_info(url: str) -> Dict[str, Any]:
 
 
 # ==============================================================================
-# DIRECT STREAM URL (fallback lookup)
+# DIRECT STREAM URL
 # ==============================================================================
 def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[str, str]]:
     clean_url = url.strip()
@@ -367,7 +365,7 @@ def get_direct_stream_url(url: str, format_id: str = "best") -> Optional[Dict[st
 
 
 # ==============================================================================
-# FALLBACK: SERVER-SIDE DOWNLOAD (fast settings)
+# FALLBACK: SERVER-SIDE DOWNLOAD
 # ==============================================================================
 def download_media_file(
     url: str,
