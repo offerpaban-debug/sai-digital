@@ -1,18 +1,6 @@
 FROM python:3.11-slim
 
-# Prevent Python from writing .pyc files & buffer stdout/stderr
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    PORT=7860 \
-    HOST=0.0.0.0 \
-    DOWNLOADS_DIR=/app/downloads \
-    MAX_FILE_AGE_SECONDS=1800 \
-    RATE_LIMIT_PER_MINUTE=5 \
-    ENABLE_YOUTUBE=false \
-    ENVIRONMENT=production
-
-# Install system dependencies including ffmpeg
+# System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
@@ -21,21 +9,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Create downloads folder with write permissions for Hugging Face Spaces (user 1000)
-RUN mkdir -p /app/downloads && chmod 777 /app/downloads
-
-# Install Python requirements
+# Install Python deps
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --upgrade yt-dlp
 
-# Copy all application files
+# Copy application
 COPY . .
 
-# Set permissions for non-root user execution in Hugging Face Spaces
-RUN chmod -R 777 /app/downloads
+RUN mkdir -p downloads static templates && chmod -R 777 /app/downloads
 
-# Expose Hugging Face Spaces port
-EXPOSE 7860
+ENV PYTHONUNBUFFERED=1
+ENV PORT=10000
 
-# Start FastAPI application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+EXPOSE 10000
+
+CMD ["python", "main.py"]
