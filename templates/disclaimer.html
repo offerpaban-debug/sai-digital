@@ -1,193 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Disclaimer & Non-Affiliation Notice — Sai Digital</title>
-  <meta name="description" content="Legal disclaimer and trademark notice for Sai Digital. Non-affiliation with third-party social media platforms and fair use archiving policies." />
-  
-  <meta property="og:title" content="Disclaimer — Sai Digital" />
-  <meta property="og:description" content="Non-affiliation notice, copyright statement, and risk disclosures for Sai Digital." />
-  <meta property="og:type" content="website" />
-  
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>" />
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
+{% extends "base.html" %}
 
-  <div class="ambient-bg" aria-hidden="true">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-  </div>
+{% block title %}Disclaimer & Non-Affiliation Notice — Sai Digital{% endblock %}
+{% block description %}Legal disclaimer and trademark notice for Sai Digital. Non-affiliation with third-party social media platforms and fair use archiving policies.{% endblock %}
 
-  <!-- Navbar -->
-  <header class="navbar">
-    <div class="nav-container">
-      <a href="/" class="brand" aria-label="Sai Digital Homepage">
-        <div class="brand-icon-wrapper">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="6 4 19 12 6 20 6 4" fill="currentColor" fill-opacity="0.3"></polygon>
-            <path d="M12 17v4"></path>
-            <path d="M8 21h8"></path>
-          </svg>
-        </div>
-        <span class="brand-title">Sai Digital</span>
-        <span class="brand-badge">Notice</span>
-      </a>
+{% block content %}
+<section class="legal-wrapper">
 
-      <nav class="nav-links">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/blog" class="nav-link">Blog</a>
-        <a href="/about" class="nav-link">About</a>
-        <a href="/contact" class="nav-link">Contact</a>
-        <div class="nav-status-badge">
-          <span class="status-dot"></span>
-          <span>Engine Online</span>
-        </div>
-      </nav>
-
-      <button type="button" class="menu-toggle-btn" id="btn-menu-toggle" aria-label="Toggle mobile menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
+  <header class="legal-header">
+    <div class="hero-badge">
+      <span class="pulse-dot"></span>
+      <span>Legal Disclaimer</span>
     </div>
+    <h1>Platform <span class="gradient-text">Disclaimer</span></h1>
+    <p class="subtitle">Important disclosures regarding trademark ownership and software usage.</p>
   </header>
 
-  <!-- Mobile Drawer -->
-  <div class="mobile-menu-drawer" id="mobile-drawer">
-    <a href="/" class="mobile-nav-link">Home</a>
-    <a href="/blog" class="mobile-nav-link">Blog</a>
-    <a href="/about" class="mobile-nav-link">About</a>
-    <a href="/contact" class="mobile-nav-link">Contact</a>
-    <a href="/privacy" class="mobile-nav-link">Privacy Policy</a>
-    <a href="/terms" class="mobile-nav-link">Terms of Service</a>
+  <div class="legal-content glass">
+    <h2>1. Non-Affiliation Statement</h2>
+    <p>
+      <strong>Sai Digital</strong> is an independent software tool and technology blog. Sai Digital is <strong>NOT</strong> affiliated, associated, authorized, endorsed by, or in any way officially connected with:
+    </p>
+    <ul>
+      <li><strong>Meta Platforms, Inc.</strong>, Facebook, or Instagram</li>
+      <li><strong>ByteDance Ltd.</strong> or TikTok</li>
+      <li><strong>X Corp.</strong> or Twitter</li>
+      <li><strong>Reddit, Inc.</strong></li>
+      <li><strong>Pinterest, Inc.</strong></li>
+      <li><strong>Vimeo, Inc.</strong></li>
+    </ul>
+    <p>
+      All product and company names, logos, brands, and registered trademarks displayed on this site are property of their respective holders. The use of these trademarks does not imply any affiliation, sponsorship, or endorsement.
+    </p>
+
+    <h2>2. Use at Your Own Risk</h2>
+    <p>
+      The information, utilities, scripts, and guides provided on Sai Digital are for educational, research, and personal archiving purposes only. All activities conducted through the Sai Digital interface are carried out at your own risk.
+    </p>
+    <p>
+      Sai Digital shall not be held liable for any loss, legal disputes, damages, or claims arising from the improper use, re-distribution, or copyright infringement of media downloaded through this web utility.
+    </p>
+
+    <h2>3. Copyright &amp; Fair Use</h2>
+    <p>
+      We strongly advocate for creators' intellectual property rights. Users must only download media that they own, have explicit permission to access, or that is distributed under open public licenses (such as Creative Commons) or qualifies under standard "Fair Use" provisions.
+    </p>
+    <p>
+      Sai Digital does not provide proxy or VPN evasion capabilities, does not bypass DRM-encrypted media streams, and does not unlock private account content.
+    </p>
+
+    <h2>4. Educational &amp; Editorial Content</h2>
+    <p>
+      All articles, guides, and tutorials published on the Sai Digital Blog represent editorial opinions and technical analyses prepared in good faith. We make no representations or warranties of any kind regarding the completeness, accuracy, or suitability of the information.
+    </p>
   </div>
 
-  <main class="page-wrapper">
-    <div class="legal-wrapper">
-      <header class="legal-header">
-        <div class="hero-pill-badge">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          <span>Legal Disclaimer</span>
-        </div>
-        <h1 class="hero-title">Platform <span class="gradient-text">Disclaimer</span></h1>
-        <p class="hero-subtitle">Important disclosures regarding trademark ownership and software usage.</p>
-      </header>
-
-      <div class="legal-content">
-        <h2>1. Non-Affiliation Statement</h2>
-        <p>
-          <strong>Sai Digital</strong> is an independent software tool and technology blog. Sai Digital is <strong>NOT</strong> affiliated, associated, authorized, endorsed by, or in any way officially connected with:
-        </p>
-        <ul>
-          <li><strong>Meta Platforms, Inc.</strong>, Facebook, or Instagram</li>
-          <li><strong>ByteDance Ltd.</strong> or TikTok</li>
-          <li><strong>X Corp.</strong> or Twitter</li>
-          <li><strong>Reddit, Inc.</strong></li>
-          <li><strong>Pinterest, Inc.</strong></li>
-          <li><strong>Vimeo, Inc.</strong></li>
-        </ul>
-        <p>
-          All product and company names, logos, brands, and registered trademarks displayed on this site are property of their respective holders. The use of these trademarks does not imply any affiliation, sponsorship, or endorsement.
-        </p>
-
-        <h2>2. Use at Your Own Risk</h2>
-        <p>
-          The information, utilities, scripts, and guides provided on Sai Digital are for educational, research, and personal archiving purposes only. All activities conducted through the Sai Digital interface are carried out at your own risk. 
-        </p>
-        <p>
-          Sai Digital shall not be held liable for any loss, legal disputes, damages, or claims arising from the improper use, re-distribution, or copyright infringement of media downloaded through this web utility.
-        </p>
-
-        <h2>3. Copyright & Fair Use</h2>
-        <p>
-          We strongly advocate for creators' intellectual property rights. Users must only download media that they own, have explicit permission to access, or that is distributed under open public licenses (such as Creative Commons) or qualifies under standard "Fair Use" provisions.
-        </p>
-        <p>
-          Sai Digital does not provide proxy or VPN evasion capabilities, does not bypass DRM-encrypted media streams, and does not unlock private account content.
-        </p>
-
-        <h2>4. Educational & Editorial Content</h2>
-        <p>
-          All articles, guides, and tutorials published on the Sai Digital Blog represent editorial opinions and technical analyses prepared in good faith. We make no representations or warranties of any kind regarding the completeness, accuracy, or suitability of the information.
-        </p>
-      </div>
-    </div>
-  </main>
-
-  <!-- 4-Column Footer -->
-  <footer class="footer">
-    <div class="footer-content">
-      <div class="footer-grid">
-        <div class="footer-col">
-          <h4>Sai Digital</h4>
-          <p>
-            Premium universal media archiving tool and tech publication. Fast, clean, watermark-free video extraction and studio-quality MP3 conversion.
-          </p>
-          <div class="footer-social-links">
-            <a href="https://facebook.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
-            <a href="https://twitter.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="X / Twitter"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-            <a href="https://instagram.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener" class="social-icon-btn" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
-          </div>
-        </div>
-
-        <div class="footer-col">
-          <h4>Navigation</h4>
-          <ul>
-            <li><a href="/">Video Downloader</a></li>
-            <li><a href="/blog">Blog & Guides</a></li>
-            <li><a href="/about">About Sai Digital</a></li>
-            <li><a href="/contact">Contact Support</a></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h4>Legal & Policies</h4>
-          <ul>
-            <li><a href="/privacy">Privacy Policy</a></li>
-            <li><a href="/terms">Terms of Service</a></li>
-            <li><a href="/disclaimer">Disclaimer & DMCA</a></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h4>Engine Status</h4>
-          <p style="font-size: 0.85rem; margin-bottom: 0.75rem;">
-            Powered by yt-dlp & FFmpeg media converters. High-speed multi-threaded infrastructure.
-          </p>
-          <div class="nav-status-badge">
-            <span class="status-dot"></span>
-            <span>All Services Operational</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="footer-bottom-bar">
-        <div>© 2025 Sai Digital. All rights reserved.</div>
-        <div style="font-size: 0.8rem; color: var(--text-dim);">
-          AdSense Ready • GDPR & India Privacy Compliant
-        </div>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-    const menuBtn = document.getElementById('btn-menu-toggle');
-    const drawer = document.getElementById('mobile-drawer');
-    if (menuBtn && drawer) {
-      menuBtn.addEventListener('click', () => {
-        drawer.classList.toggle('open');
-      });
-    }
-  </script>
-</body>
-</html>
+</section>
+{% endblock %}
