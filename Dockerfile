@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# System dependencies
+# Install ffmpeg + minimal deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
@@ -9,20 +9,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps
+# Install Python deps first (better layer caching)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir --upgrade yt-dlp
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --upgrade yt-dlp
 
-# Copy application
+# Copy app
 COPY . .
 
-RUN mkdir -p downloads static templates && chmod -R 777 /app/downloads
+# Create downloads dir
+RUN mkdir -p downloads
 
+# Env defaults
 ENV PYTHONUNBUFFERED=1
-ENV PORT=10000
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DOWNLOADS_DIR=downloads
+ENV MAX_FILE_AGE_SECONDS=300
 
 EXPOSE 10000
 
-CMD ["python", "main.py"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 8 --timeout-keep-alive 30"]
