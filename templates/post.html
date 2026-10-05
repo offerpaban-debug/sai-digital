@@ -133,7 +133,7 @@
 
   {% if related_posts and related_posts|length > 0 %}
   <section style="margin-top: 3.5rem;">
-    <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1.25rem; background: none; -webkit-text-fill-color: var(--text-primary);">Related Articles</h2>
+    <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1.25rem;">Related Articles</h2>
     <div class="blog-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
       {% for r in related_posts %}
       <a href="/blog/{{ r.slug }}" class="blog-card">
