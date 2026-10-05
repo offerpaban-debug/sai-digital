@@ -1,421 +1,383 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // ==========================================================================
-  // DOM
-  // ==========================================================================
-  const form = document.getElementById('download-form');
-  const urlInput = document.getElementById('video-url-input');
-  const btnPaste = document.getElementById('btn-paste');
-  const btnSubmit = document.getElementById('btn-submit');
-  const platformChip = document.getElementById('platform-chip');
-  const platformChipIcon = document.getElementById('platform-chip-icon');
-  const platformChipName = document.getElementById('platform-chip-name');
+/* =========================================================================
+   SAI DIGITAL — Frontend download logic (memory-safe / queue-aware)
+   ========================================================================= */
 
-  const loadingState = document.getElementById('loading-state');
-  const loadingStatusText = document.getElementById('loading-status-text');
-  const skeletonLoader = document.getElementById('skeleton-loader');
-  const resultsSection = document.getElementById('results-section');
+const API_INFO = '/api/info';
+const API_DOWNLOAD = '/api/download-direct';
+const FETCH_TIMEOUT_MS = 180000;   // 3 min (queue + download)
+const DOWNLOAD_TIMEOUT_MS = 240000; // 4 min
 
-  const resultThumbnail = document.getElementById('result-thumbnail');
-  const resultDuration = document.getElementById('result-duration');
-  const resultPlatform = document.getElementById('result-platform');
-  const resultTitle = document.getElementById('result-title');
-  const resultAuthor = document.getElementById('result-author');
+// ---- DOM refs (with safe lookups) ---------------------------------------
+const $ = (id) => document.getElementById(id);
 
-  const tabVideo = document.getElementById('tab-video');
-  const tabAudio = document.getElementById('tab-audio');
-  const videoGrid = document.getElementById('video-formats-grid');
-  const audioGrid = document.getElementById('audio-formats-grid');
-  const toastContainer = document.getElementById('toast-container');
+const urlInput = $('video-url-input');
+const btnPaste = $('btn-paste');
+const btnSubmit = $('btn-submit');
+const platformChip = $('platform-chip');
+const platformChipName = $('platform-chip-name');
 
-  let currentVideoData = null;
-  let activeTab = 'video';
+const loadingState = $('loading-state');
+const loadingText = $('loading-status-text');
 
-  const CLIENT_PLATFORMS = [
-    { name: 'Facebook', color: '#1877F2', regex: /(?:facebook\.com|fb\.watch|fb\.com)/i },
-    { name: 'Instagram', color: '#E1306C', regex: /(?:instagram\.com|instagr\.am)/i },
-    { name: 'TikTok', color: '#FE2C55', regex: /tiktok\.com/i },
-    { name: 'Twitter / X', color: '#1DA1F2', regex: /(?:twitter\.com|x\.com)/i },
-    { name: 'Pinterest', color: '#E60023', regex: /(?:pinterest\.com|pin\.it)/i },
-    { name: 'Reddit', color: '#FF4500', regex: /(?:reddit\.com|redd\.it)/i },
-    { name: 'Vimeo', color: '#1AB7EA', regex: /vimeo\.com/i },
-    { name: 'Threads', color: '#8b5cf6', regex: /threads\.net/i },
-  ];
+const resultsSection = $('results-section');
+const resultThumb = $('result-thumbnail');
+const resultTitle = $('result-title');
+const resultDuration = $('result-duration');
+const resultPlatform = $('result-platform');
+const resultAuthor = $('result-author');
 
-  // ==========================================================================
-  // TOAST
-  // ==========================================================================
-  function showToast(title, message, type = 'info', duration = 2500) {
-    if (!toastContainer) return;
+const tabVideo = $('tab-video');
+const tabAudio = $('tab-audio');
+const videoGrid = $('video-formats-grid');
+const audioGrid = $('audio-formats-grid');
+
+let currentInfo = null;
+
+// ---- Platform detect ----------------------------------------------------
+const PLATFORM_MAP = [
+    { name: 'Facebook',  re: /(facebook\.com|fb\.watch|fb\.com)/i, color: '#1877f2' },
+    { name: 'Instagram', re: /(instagram\.com|instagr\.am)/i,      color: '#e4405f' },
+    { name: 'TikTok',    re: /tiktok\.com/i,                      color: '#69c9d0' },
+    { name: 'Twitter/X', re: /(twitter\.com|x\.com)/i,            color: '#ffffff' },
+    { name: 'Pinterest', re: /(pinterest\.com|pin\.it)/i,         color: '#e60023' },
+    { name: 'Reddit',    re: /(reddit\.com|redd\.it)/i,           color: '#ff4500' },
+    { name: 'Vimeo',     re: /vimeo\.com/i,                       color: '#1ab7ea' },
+    { name: 'Threads',   re: /(threads\.net|threads\.com)/i,      color: '#ffffff' },
+];
+
+function detectPlatform(url) {
+    for (const p of PLATFORM_MAP) {
+        if (p.re.test(url)) return p;
+    }
+    return null;
+}
+
+if (urlInput) {
+    urlInput.addEventListener('input', () => {
+        const url = urlInput.value.trim();
+        if (!url || !platformChip) return;
+        const p = detectPlatform(url);
+        if (p) {
+            platformChip.classList.add('active');
+            platformChip.style.background = p.color + '22';
+            platformChip.style.borderColor = p.color;
+            platformChipName.textContent = p.name + ' detected';
+        } else {
+            platformChip.classList.remove('active');
+            platformChipName.textContent = 'Unknown platform';
+        }
+    });
+}
+
+// ---- Paste button -------------------------------------------------------
+if (btnPaste) {
+    btnPaste.addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            urlInput.value = text.trim();
+            urlInput.dispatchEvent(new Event('input'));
+        } catch {
+            showToast('Paste Not Allowed', 'Please paste manually (Ctrl+V).', 'error');
+        }
+    });
+}
+
+// ---- Toast --------------------------------------------------------------
+function showToast(title, message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    if (type === 'error') toast.classList.add('shake');
-
-    let iconSvg = '';
-    if (type === 'error') {
-      iconSvg = `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
-    } else if (type === 'success') {
-      iconSvg = `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
-    } else {
-      iconSvg = `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
-    }
-
     toast.innerHTML = `
-      ${iconSvg}
-      <div class="toast-body">
-        <div class="toast-title">${escapeHtml(title)}</div>
-        <div class="toast-desc">${escapeHtml(message)}</div>
-      </div>
-      <button class="toast-close" aria-label="Close notification">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
+        <div class="toast-body">
+          <div class="toast-title">${title}</div>
+          <div class="toast-desc">${message}</div>
+        </div>
     `;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 4500);
+}
 
-    const closeBtn = toast.querySelector('.toast-close');
-    const dismiss = () => {
-      toast.classList.add('hiding');
-      setTimeout(() => toast.remove(), 300);
-    };
-    closeBtn.addEventListener('click', dismiss);
-    setTimeout(dismiss, duration);
-    toastContainer.appendChild(toast);
-  }
-
-  function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // ==========================================================================
-  // PLATFORM CHIP
-  // ==========================================================================
-  function checkUrlPlatform(value) {
-    const trimmed = (value || '').trim();
-    if (!trimmed) {
-      platformChip && platformChip.classList.remove('active');
-      return;
+// ---- Loading state ------------------------------------------------------
+function showLoading(text) {
+    if (loadingState) {
+        loadingState.style.display = 'flex';
+        if (loadingText) loadingText.textContent = text;
     }
-    let detected = null;
-    for (const p of CLIENT_PLATFORMS) {
-      if (p.regex.test(trimmed)) { detected = p; break; }
-    }
-    if (detected && platformChip) {
-      platformChipName.textContent = detected.name;
-      platformChip.style.background = detected.color;
-      platformChip.classList.add('active');
-    } else if ((trimmed.startsWith('http://') || trimmed.startsWith('https://')) && platformChip) {
-      platformChipName.textContent = 'Web Video';
-      platformChip.style.background = '#8b5cf6';
-      platformChip.classList.add('active');
-    } else if (platformChip) {
-      platformChip.classList.remove('active');
-    }
-  }
+}
 
-  urlInput && urlInput.addEventListener('input', (e) => checkUrlPlatform(e.target.value));
+function hideLoading() {
+    if (loadingState) loadingState.style.display = 'none';
+}
 
-  // ==========================================================================
-  // PASTE
-  // ==========================================================================
-  btnPaste && btnPaste.addEventListener('click', async () => {
+// ---- Fetch with timeout -------------------------------------------------
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-          urlInput.value = text.trim();
-          checkUrlPlatform(text);
-          showToast('URL Pasted', 'Clipboard contents inserted', 'info', 1200);
-          triggerFetch();
-        } else {
-          showToast('Clipboard Empty', 'No text found in clipboard', 'info');
-        }
-      } else {
-        urlInput.focus();
-        showToast('Clipboard Access', 'Press Ctrl+V / Cmd+V to paste', 'info');
-      }
-    } catch (err) {
-      urlInput.focus();
-      showToast('Clipboard Notice', 'Please paste the URL directly into the box', 'info');
-    }
-  });
-
-  // ==========================================================================
-  // RIPPLE
-  // ==========================================================================
-  function createRipple(e) {
-    const button = e.currentTarget;
-    if (!button) return;
-    const circle = document.createElement('span');
-    const diameter = Math.max(button.clientWidth, button.clientHeight);
-    const radius = diameter / 2;
-    const rect = button.getBoundingClientRect();
-    circle.style.width = circle.style.height = `${diameter}px`;
-    circle.style.left = `${e.clientX - rect.left - radius}px`;
-    circle.style.top = `${e.clientY - rect.top - radius}px`;
-    circle.classList.add('ripple');
-    const existing = button.getElementsByClassName('ripple')[0];
-    if (existing) existing.remove();
-    button.appendChild(circle);
-  }
-
-  // ==========================================================================
-  // SUBMIT / FETCH
-  // ==========================================================================
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      triggerFetch();
-    });
-  }
-
-  btnSubmit && btnSubmit.addEventListener('click', (e) => {
-    createRipple(e);
-    if (!form) triggerFetch();
-  });
-
-  async function triggerFetch() {
-    const url = urlInput.value.trim();
-    if (!url) {
-      showToast('Input Required', 'Please paste a valid video URL.', 'error');
-      urlInput.focus();
-      return;
-    }
-
-    resultsSection && (resultsSection.style.display = 'none');
-    loadingState && (loadingState.style.display = 'flex');
-    skeletonLoader && (skeletonLoader.style.display = 'block');
-    if (loadingStatusText) loadingStatusText.textContent = 'Analyzing video stream...';
-    if (btnSubmit) {
-      btnSubmit.disabled = true;
-      btnSubmit.style.opacity = '0.7';
-    }
-
-    try {
-      const response = await fetch('/api/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        const errorTitle = result.error || 'Extraction Failed';
-        const errorDesc = result.en || result.detail || 'Could not fetch video';
-        showToast(errorTitle, errorDesc, 'error', 5000);
-        return;
-      }
-
-      currentVideoData = result.data;
-      renderResults(result.data);
-      showToast('Media Ready', 'Video formats retrieved successfully!', 'success', 1800);
-
-      setTimeout(() => {
-        resultsSection && resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 80);
-    } catch (err) {
-      showToast('Connection Error', 'Network failed or server unreachable.', 'error');
+        return await fetch(url, { ...options, signal: controller.signal });
     } finally {
-      loadingState && (loadingState.style.display = 'none');
-      skeletonLoader && (skeletonLoader.style.display = 'none');
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.style.opacity = '1';
-      }
+        clearTimeout(timer);
     }
-  }
+}
 
-  // ==========================================================================
-  // RENDER
-  // ==========================================================================
-  function renderResults(data) {
-    if (resultTitle) resultTitle.textContent = data.title || 'Untitled Video';
-    if (resultThumbnail) resultThumbnail.src = data.thumbnail || '/static/img/placeholder.jpg';
-    if (resultDuration) resultDuration.textContent = data.duration_formatted || '00:00';
-    if (resultAuthor) resultAuthor.textContent = data.uploader || 'Creator';
+// ---- Submit — Fetch video info -----------------------------------------
+if (btnSubmit) {
+    btnSubmit.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = urlInput.value.trim();
+        if (!url) {
+            showToast('Missing URL', 'Please paste a video URL first.', 'error');
+            return;
+        }
+        if (!detectPlatform(url)) {
+            showToast('Unsupported Platform', 'This platform is not supported.', 'error');
+            return;
+        }
 
-    if (data.platform && resultPlatform) {
-      resultPlatform.textContent = data.platform.name;
-      resultPlatform.style.background = `${data.platform.color}25`;
-      resultPlatform.style.color = data.platform.color;
-      resultPlatform.style.borderColor = `${data.platform.color}50`;
-    }
+        btnSubmit.disabled = true;
+        showLoading('Analyzing video stream...');
+        if (resultsSection) resultsSection.style.display = 'none';
 
-    renderVideoFormats(data.video_formats, data.webpage_url, data.best_direct_url);
-    renderAudioFormats(data.audio_formats, data.webpage_url);
+        try {
+            const res = await fetchWithTimeout(API_INFO, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url }),
+            }, FETCH_TIMEOUT_MS);
 
-    resultsSection && (resultsSection.style.display = 'block');
-  }
+            const data = await res.json();
 
-  function renderVideoFormats(formats, originalUrl, bestDirectUrl) {
-    if (!videoGrid) return;
-    videoGrid.innerHTML = '';
+            if (!res.ok) {
+                throw new Error(data.detail || 'Could not fetch video info.');
+            }
 
-    if (!formats || formats.length === 0) {
-      videoGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-muted);">No individual video formats discovered.</div>`;
-      return;
-    }
+            currentInfo = { ...data, url };
+            renderResults(data);
 
-    formats.forEach((fmt) => {
-      const card = document.createElement('div');
-      card.className = `format-card ${fmt.is_recommended ? 'recommended' : ''}`;
-      const badgeHtml = fmt.badge ? `<span class="format-badge">${escapeHtml(fmt.badge)}</span>` : '';
-      const audioIndicator = fmt.has_audio ? 'Audio Included' : 'Auto Muxed Audio';
-
-      card.innerHTML = `
-        ${badgeHtml}
-        <div class="format-title-group">
-          <div class="format-quality">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <span>${escapeHtml(fmt.label)}</span>
-          </div>
-          <div class="format-sub">${escapeHtml(fmt.resolution)} • MP4 • ${audioIndicator}</div>
-        </div>
-        <div class="format-footer">
-          <span class="format-size">${escapeHtml(fmt.size_str || 'Standard Stream')}</span>
-          <button type="button" class="btn-card-download">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            <span class="btn-text">Download</span>
-          </button>
-        </div>
-      `;
-
-      card.addEventListener('click', (e) => {
-        createRipple(e);
-        const direct = (fmt.format_id === 'best')
-          ? (fmt.direct_url || bestDirectUrl || null)
-          : null;
-        initiateDownload({
-          url: originalUrl,
-          format_id: fmt.format_id,
-          type: 'video',
-          cardElement: card,
-          quality: 'best',
-          directUrl: direct,
-        });
-      });
-
-      videoGrid.appendChild(card);
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                showToast('Timeout', 'Server took too long. Please try again.', 'error');
+            } else {
+                showToast('Error', err.message || 'Failed to fetch info.', 'error');
+            }
+        } finally {
+            hideLoading();
+            btnSubmit.disabled = false;
+        }
     });
-  }
+}
 
-  function renderAudioFormats(formats, originalUrl) {
-    if (!audioGrid) return;
+// ---- Render results -----------------------------------------------------
+function renderResults(info) {
+    if (!resultsSection) return;
+
+    if (resultThumb) resultThumb.src = info.thumbnail || '/static/img/placeholder.jpg';
+    if (resultTitle) resultTitle.textContent = info.title || 'Untitled';
+    if (resultAuthor) resultAuthor.textContent = info.uploader || 'Unknown';
+    if (resultPlatform) {
+        resultPlatform.textContent = info.platform || 'Video';
+        const p = detectPlatform(info.webpage_url || '');
+        if (p) {
+            resultPlatform.style.background = p.color + '22';
+            resultPlatform.style.borderColor = p.color;
+            resultPlatform.style.color = p.color;
+        }
+    }
+    if (resultDuration && info.duration) {
+        resultDuration.textContent = formatDuration(info.duration);
+    }
+
+    renderFormats(info.formats || []);
+
+    resultsSection.style.display = 'block';
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function formatDuration(sec) {
+    if (!sec || isNaN(sec)) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatBytes(bytes) {
+    if (!bytes || isNaN(bytes)) return 'Unknown size';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) {
+        bytes /= 1024;
+        i++;
+    }
+    return `${bytes.toFixed(1)} ${units[i]}`;
+}
+
+// ---- Render formats -----------------------------------------------------
+function renderFormats(formats) {
+    if (!videoGrid || !audioGrid) return;
+
+    const videos = formats.filter(f => f.has_video);
+    const audios = formats.filter(f => f.has_audio && !f.has_video);
+    const audioFromVideo = formats.filter(f => f.has_video); // for mp3 extraction
+
+    videoGrid.innerHTML = '';
     audioGrid.innerHTML = '';
 
-    if (!formats || formats.length === 0) {
-      audioGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-muted);">Audio extraction unavailable.</div>`;
-      return;
+    // Video formats
+    if (videos.length === 0) {
+        videoGrid.innerHTML = '<div class="format-card">No video formats found</div>';
+    } else {
+        videos.sort((a, b) => (b.filesize || 0) - (a.filesize || 0));
+        videos.slice(0, 8).forEach((f, i) => {
+            videoGrid.appendChild(buildFormatCard(f, 'video', i === 0));
+        });
     }
 
-    formats.forEach((fmt) => {
-      const card = document.createElement('div');
-      card.className = `format-card ${fmt.is_recommended ? 'recommended' : ''}`;
-      const badgeHtml = fmt.badge ? `<span class="format-badge">${escapeHtml(fmt.badge)}</span>` : '';
+    // Audio formats (always offer generic MP3 from best video)
+    const bestForAudio = audioFromVideo[0] || formats[0];
+    if (bestForAudio) {
+        audioGrid.appendChild(buildFormatCard(bestForAudio, 'audio', true));
+    }
+    audios.forEach((f) => {
+        audioGrid.appendChild(buildFormatCard(f, 'audio', false));
+    });
 
-      card.innerHTML = `
-        ${badgeHtml}
+    // Tabs default: video
+    if (tabVideo && tabAudio) {
+        tabVideo.classList.add('active');
+        tabAudio.classList.remove('active');
+        videoGrid.style.display = 'grid';
+        audioGrid.style.display = 'none';
+    }
+}
+
+function buildFormatCard(fmt, type, recommended) {
+    const card = document.createElement('div');
+    card.className = 'format-card' + (recommended ? ' recommended' : '');
+
+    const quality = fmt.quality || fmt.ext || 'Standard';
+    const size = formatBytes(fmt.filesize);
+
+    card.innerHTML = `
+        ${recommended ? '<div class="format-badge">Recommended</div>' : ''}
         <div class="format-title-group">
-          <div class="format-quality">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
-            <span>${escapeHtml(fmt.label)}</span>
-          </div>
-          <div class="format-sub">${escapeHtml(fmt.description)}</div>
+            <div class="format-quality">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    ${type === 'audio'
+                        ? '<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>'
+                        : '<polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>'}
+                </svg>
+                <span>${quality}</span>
+            </div>
+            <div class="format-sub">${type === 'audio' ? 'MP3 192kbps' : fmt.ext?.toUpperCase() || 'MP4'}</div>
         </div>
         <div class="format-footer">
-          <span class="format-size">MP3 Audio</span>
-          <button type="button" class="btn-card-download">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            <span class="btn-text">Download MP3</span>
-          </button>
+            <span class="format-size">${size}</span>
+            <button class="btn-card-download" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download
+            </button>
         </div>
-      `;
+    `;
 
-      card.addEventListener('click', (e) => {
-        createRipple(e);
-        initiateDownload({
-          url: originalUrl,
-          format_id: 'bestaudio',
-          type: 'audio',
-          quality: fmt.quality || '192',
-          cardElement: card,
-          directUrl: null,
+    card.querySelector('.btn-card-download').addEventListener('click', (e) => {
+        e.stopPropagation();
+        triggerDownload(fmt, type);
+    });
+
+    return card;
+}
+
+// ---- Download trigger ---------------------------------------------------
+async function triggerDownload(fmt, type) {
+    if (!currentInfo) return;
+
+    showLoading(
+        type === 'audio'
+            ? 'Preparing MP3... (may take 30-90s if queue busy)'
+            : 'Starting download... (may wait up to 1 min if queue busy)'
+    );
+
+    try {
+        const res = await fetchWithTimeout(API_DOWNLOAD, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: currentInfo.url,
+                format_id: fmt.format_id || 'best',
+                type: type,
+            }),
+        }, DOWNLOAD_TIMEOUT_MS);
+
+        if (!res.ok) {
+            let detail = 'Download failed.';
+            try {
+                const j = await res.json();
+                detail = j.detail || detail;
+            } catch { /* ignore */ }
+            throw new Error(detail);
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const safeTitle = (currentInfo.title || 'video').replace(/[^\w\s-]/g, '').slice(0, 60).trim();
+        a.download = type === 'audio'
+            ? `sai-digital-${safeTitle}.mp3`
+            : `sai-digital-${safeTitle}.mp4`;
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showToast('Download Started', 'Check your browser downloads.', 'success');
+
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            showToast('Timeout', 'Server busy — please try again in a minute.', 'error');
+        } else {
+            showToast('Download Failed', err.message || 'Try again later.', 'error');
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+// ---- Tab switching ------------------------------------------------------
+if (tabVideo && tabAudio) {
+    tabVideo.addEventListener('click', () => {
+        tabVideo.classList.add('active');
+        tabAudio.classList.remove('active');
+        if (videoGrid) videoGrid.style.display = 'grid';
+        if (audioGrid) audioGrid.style.display = 'none';
+    });
+
+    tabAudio.addEventListener('click', () => {
+        tabAudio.classList.add('active');
+        tabVideo.classList.remove('active');
+        if (videoGrid) videoGrid.style.display = 'none';
+        if (audioGrid) audioGrid.style.display = 'grid';
+    });
+}
+
+// ---- Reveal on scroll ---------------------------------------------------
+(function revealOnScroll() {
+    const els = document.querySelectorAll('.reveal');
+    if (!els.length) return;
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+            if (e.isIntersecting) {
+                e.target.classList.add('visible');
+                io.unobserve(e.target);
+            }
         });
-      });
-
-      audioGrid.appendChild(card);
-    });
-  }
-
-  // ==========================================================================
-  // TABS
-  // ==========================================================================
-  tabVideo && tabVideo.addEventListener('click', () => {
-    if (activeTab === 'video') return;
-    activeTab = 'video';
-    tabVideo.classList.add('active');
-    tabVideo.setAttribute('aria-selected', 'true');
-    tabAudio && tabAudio.classList.remove('active');
-    tabAudio && tabAudio.setAttribute('aria-selected', 'false');
-    videoGrid && (videoGrid.style.display = 'grid');
-    audioGrid && (audioGrid.style.display = 'none');
-  });
-
-  tabAudio && tabAudio.addEventListener('click', () => {
-    if (activeTab === 'audio') return;
-    activeTab = 'audio';
-    tabAudio.classList.add('active');
-    tabAudio.setAttribute('aria-selected', 'true');
-    tabVideo && tabVideo.classList.remove('active');
-    tabVideo && tabVideo.setAttribute('aria-selected', 'false');
-    videoGrid && (videoGrid.style.display = 'none');
-    audioGrid && (audioGrid.style.display = 'grid');
-  });
-
-  // ==========================================================================
-  // DOWNLOAD — FAST
-  // ==========================================================================
-  function initiateDownload({ url, format_id, type, quality, cardElement, directUrl }) {
-    const btn = cardElement.querySelector('.btn-card-download');
-    const btnText = cardElement.querySelector('.btn-text');
-    const originalText = btnText ? btnText.textContent : 'Download';
-
-    if (btnText) btnText.textContent = 'Starting...';
-    if (btn) {
-      btn.style.opacity = '0.75';
-      btn.style.pointerEvents = 'none';
-    }
-
-    showToast('Download Started', 'Your browser will handle the download.', 'info', 1500);
-
-    const params = new URLSearchParams({
-      url: url,
-      format_id: format_id,
-      type: type,
-      quality: quality || '192',
-    });
-
-    if (directUrl && type === 'video' && format_id === 'best') {
-      params.set('direct_url', directUrl);
-    }
-
-    const downloadUrl = `/api/download-direct?${params.toString()}`;
-
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.rel = 'noopener';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => a.remove(), 1500);
-
-    setTimeout(() => {
-      if (btnText) btnText.textContent = originalText;
-      if (btn) {
-        btn.style.opacity = '1';
-        btn.style.pointerEvents = 'auto';
-      }
-    }, 200);
-  }
-});
+    }, { threshold: 0.1 });
+    els.forEach((el) => io.observe(el));
+})();
